@@ -166,17 +166,31 @@ sudo docker run --rm \
 
 ---
 
-## Upgrading
+## Boot startup
 
-### Automatic (cron)
+`install.sh` installs `samm-docker.service` (systemd, enabled). The stack comes back up after a host reboot — even if you ran `docker compose down` before shutdown. Belt-and-suspenders alongside compose's `restart: unless-stopped`: the restart policy survives Docker daemon restarts, the systemd unit covers explicit-down + reboot.
 
-`install.sh` drops `host-updater.sh` into `/opt/samm-docker/`. Add it to root cron:
-
-```cron
-0 4 * * * /opt/samm-docker/host-updater.sh >> /var/log/samm-update.log 2>&1
+```bash
+systemctl status samm-docker            # see boot-unit status
+sudo systemctl disable samm-docker      # opt out of boot-start
+sudo systemctl enable samm-docker       # opt back in
 ```
 
-Each run: checks the latest release tag, downloads the matching digest-pinned `docker-compose.yml`, then `docker compose pull && docker compose up -d`. Skips when there's nothing new.
+---
+
+## Upgrading
+
+### Automatic (cron — set up for you)
+
+`install.sh` configures auto-update — nothing to do:
+
+- `/opt/samm-docker/host-updater.sh` — the upgrade script
+- `/etc/cron.d/samm-docker` — runs `host-updater.sh` **daily at 04:00**
+- `/var/log/samm-update.log` — captures stdout + stderr each run
+
+Each run: queries the latest release tag, downloads the matching digest-pinned `docker-compose.yml`, then `docker compose pull && docker compose up -d`. No-op when nothing's new.
+
+Disable: `sudo rm /etc/cron.d/samm-docker`. Change schedule by editing that file.
 
 ### Manual
 
