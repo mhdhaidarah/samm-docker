@@ -1,0 +1,138 @@
+# SAMM Docker Compose — repo-root version (always-latest).
+#
+# This file uses the `mhdhaidarah/samm:latest` floating tag — handy for
+# users who clone this repo and bring the stack up manually, but it moves
+# whenever a new SAMM release is published.
+#
+# For a digest-pinned (immutable) compose file matching a specific SAMM
+# release, grab the per-release version from GitHub Releases instead:
+#
+#   curl -fLO https://github.com/mhdhaidarah/samm-docker/releases/latest/download/docker-compose.yml
+#
+# Quickstart:
+#   cp .env.example .env
+#   $EDITOR .env          # set POSTGRES_PASSWORD and SAMM_PUBLIC_HOST
+#   docker compose up -d
+#
+# Network:
+#   - freeradius exposes UDP 1812 + 1813 on the host via compose port mapping
+#   - MikroTik NAS points to the docker host's LAN IP for RADIUS
+#   - SAMM admin + customer portal: http://<host>:${SAMM_API_PORT:-8000}/
+
+name: samm
+
+x-samm-common: &samm-common
+  image: mhdhaidarah/samm:latest
+  restart: unless-stopped
+  environment: &samm-env
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: 5432
+    POSTGRES_DB: samm
+    POSTGRES_USER: samm
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    TZ: ${TZ:-UTC}
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: samm
+      POSTGRES_USER: samm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U samm -d samm"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  samm-api:
+    <<: *samm-common
+    command: ["api"]
+    environment:
+      <<: *samm-env
+      SAMM_API_HOST: 0.0.0.0
+      SAMM_API_PORT: 8000
+      SAMM_API_WORKERS: 2
+    ports:
+      - "${SAMM_API_PORT:-8000}:8000"
+    volumes:
+      - etcsamm:/etc/samm
+      - sammvar:/opt/samm/var
+      - sammlogs:/var/log/samm
+      - sammlocales:/opt/samm/app/locales
+      - sammfreeradius:/etc/freeradius/3.0
+
+  samm-radius:
+    <<: *samm-common
+    command: ["radius"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      samm-api: { condition: service_started }
+    volumes:
+      - etcsamm:/etc/samm
+      - sammvar:/opt/samm/var
+      - sammlogs:/var/log/samm
+
+  samm-worker:
+    <<: *samm-common
+    command: ["worker"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      samm-api: { condition: service_started }
+    cap_add:
+      - NET_RAW
+    sysctls:
+      - net.ipv4.ping_group_range=0 2147483647
+    volumes:
+      - etcsamm:/etc/samm
+      - sammvar:/opt/samm/var
+      - sammlogs:/var/log/samm
+
+  samm-notification:
+    <<: *samm-common
+    command: ["notification"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      samm-api: { condition: service_started }
+    volumes:
+      - etcsamm:/etc/samm
+      - sammvar:/opt/samm/var
+      - sammlogs:/var/log/samm
+
+  samm-telegram:
+    <<: *samm-common
+    command: ["telegram"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      samm-api: { condition: service_started }
+    volumes:
+      - etcsamm:/etc/samm
+      - sammvar:/opt/samm/var
+      - sammlogs:/var/log/samm
+
+  freeradius:
+    image: freeradius/freeradius-server:3
+    restart: unless-stopped
+    depends_on:
+      samm-api:
+        condition: service_started
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+    volumes:
+      - sammfreeradius:/etc/freeradius/3.0
+
+volumes:
+  pgdata: {}
+  etcsamm: {}
+  sammvar: {}
+  sammlogs: {}
+  sammlocales: {}
+  sammfreeradius: {}
