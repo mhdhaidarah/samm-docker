@@ -103,6 +103,68 @@ That digest-pinned version is what `install.sh` deploys.
 
 ---
 
+## Windows (Docker Desktop) — evaluation only
+
+You can run SAMM on Windows via Docker Desktop + WSL2. **Not recommended for production** because:
+
+- Windows **sleep / hibernate / lid-close stops the containers** — there's no equivalent of a Linux server that just stays up
+- Auto-restart on host boot only fires when WSL boots (not when Windows boots)
+- Daily auto-update cron only runs while WSL is alive
+- No 24/7 reliability guarantee for RADIUS auth and accounting
+
+Use it for evaluation / demo, then deploy production on a Linux VM (Hyper-V, Proxmox, ESXi) or a small physical box (NUC running Ubuntu Server).
+
+**Evaluation steps:**
+
+1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop) and let it set up the WSL2 backend.
+
+2. Open **PowerShell** (no admin needed) and grab the compose bundle:
+   ```powershell
+   mkdir C:\samm-docker
+   cd C:\samm-docker
+   curl.exe -fLO https://github.com/mhdhaidarah/samm-docker/releases/latest/download/docker-compose.yml
+   curl.exe -fLO https://github.com/mhdhaidarah/samm-docker/releases/latest/download/env.example
+   copy env.example .env
+   notepad .env
+   ```
+   *(Use `curl.exe` explicitly — PowerShell's `curl` alias is `Invoke-WebRequest` with different flags.)*
+
+3. In Notepad, edit `.env`:
+   - `POSTGRES_PASSWORD=` — any strong random string (≥16 chars)
+   - `SAMM_PUBLIC_HOST=` — your Windows LAN IPv4 (run `ipconfig` to find it)
+
+   Save and close.
+
+4. Pull and start:
+   ```powershell
+   docker compose pull
+   docker compose up -d
+   ```
+
+5. **Watch it boot in Docker Desktop** → Containers tab → the `samm` group shows 7 services (postgres, samm-api, samm-radius, samm-worker, samm-notification, samm-telegram, freeradius). All turn green within ~30 s.
+
+6. Open `http://localhost:8000/admin` — login `admin` / `samm` (change immediately).
+
+7. **If testing RADIUS from a real MikroTik**: Windows Defender Firewall may prompt the first time MikroTik sends UDP 1812 — accept it. Or pre-allow:
+   ```powershell
+   New-NetFirewallRule -DisplayName "SAMM RADIUS" -Direction Inbound -Protocol UDP -LocalPort 1812,1813 -Action Allow
+   ```
+   Point MikroTik at `<windows-ip>:1812/1813`.
+
+**Day-to-day:**
+
+- Right-click the `samm` stack in Docker Desktop → Stop / Start / Logs
+- Or from PowerShell: `cd C:\samm-docker; docker compose down` and `docker compose up -d`
+
+**Tear down completely:**
+```powershell
+cd C:\samm-docker
+docker compose down -v   # -v wipes postgres + Fernet key
+Remove-Item -Recurse C:\samm-docker
+```
+
+---
+
 ## What it ships
 
 | Container | Image | Role |
