@@ -39,7 +39,7 @@ MikroTik(s) ──Auth/Acct──► freeradius (container, :1812/:1813)
 
 Every release publishes:
 
-- 🐳 **Docker image** `mhdhaidarah/samm:<ver>` to [Docker Hub](https://hub.docker.com/r/mhdhaidarah/samm), pinned to a sha256 digest
+- 🐳 **Docker image** `mhdhaidarah/samm:<ver>` to [Docker Hub](https://hub.docker.com/r/mhdhaidarah/samm), pinned to a sha256 digest. Multi-arch — **linux/amd64** and **linux/arm64** are both built and shipped under the same tag, so `docker pull` picks the right variant automatically.
 - 📦 **Compose bundle** (`docker-compose.yml`, `install.sh`, `host-updater.sh`, `.env.example`, `README.md`) to this repo's [Releases](https://github.com/mhdhaidarah/samm-docker/releases)
 
 CI in the private source repo fires both on every `v*` tag push, so the bare-OS tarball and this Docker bundle stay version-locked.
@@ -162,6 +162,32 @@ cd C:\samm-docker
 docker compose down -v   # -v wipes postgres + Fernet key
 Remove-Item -Recurse C:\samm-docker
 ```
+
+---
+
+## MikroTik containers (RouterOS 7) — experimental
+
+Since v2.2.6 the image ships as **multi-arch (amd64 + arm64)** and the compose file is portable to MikroTik's RouterOS 7 container feature. **Works on**:
+
+- **arm64 MikroTik** — RB5009, hAP ax², CCR2004-1G-12S+2XS, CCR2116, CCR2216 (most modern devices)
+- **amd64 MikroTik** — CCR2004-1G-2XS-PCIe (amd64 SKU), x86 RouterOS, CHR running on amd64 hypervisors
+
+**Does NOT work on**:
+
+- armv7 devices (hEX, RB750, older RB models) — too little RAM/CPU, image not built for armv7
+- mipsbe/mipsle/smips/tile/ppc devices — no container support at all in RouterOS
+
+### Prerequisites on the MikroTik
+
+- RouterOS 7.4+ with the `container` package installed (download the matching version from mikrotik.com/download → "Extra packages" zip → upload `container-*.npk` → reboot)
+- A USB drive or microSD mounted as a disk for image storage (`/disk1/`)
+- A veth + bridge plumbed for container networking (see [RouterOS container docs](https://help.mikrotik.com/docs/spaces/ROS/pages/84901929/Container))
+
+### Install path
+
+The `docker-compose.yaml` in this repo is plain YAML 1.2 (no merge keys), so tooling that parses compose-style YAML on RouterOS reads each service cleanly. For a typical setup, deploy each service as an individual RouterOS container — `samm-api`, `samm-radius`, `samm-worker`, `samm-notification`, `samm-telegram`, `freeradius`, `postgres` — pointing them at a shared veth/bridge.
+
+This deployment path is **experimental**: SAMM hasn't been certified against the full RouterOS container lifecycle. The bare-OS install on a small Linux box (NUC, Pi 4) remains the recommended path for production.
 
 ---
 
@@ -312,8 +338,9 @@ See [samm.securytik.com](https://samm.securytik.com) for pricing.
 These work in the bare-OS install but **not yet** in the Docker variant:
 
 - **Staged license lockdown** — the in-process license check still throttles the data plane and the reactivation wall in the admin portal still shows, but the enforcer doesn't stop containers under soft/hard lockdown in v1.
-- **Built-in WireGuard / Cloudflare Tunnel admin pages** — use the [bare-OS install](https://github.com/mhdhaidarah/samm) if you need these. The Docker variant assumes you manage VPN/tunnel on the host directly.
 - **Dynamic FreeRADIUS config reload** — changes via the admin UI need `docker compose restart freeradius` to take effect.
+
+**Note (since v2.2.6):** The **WireGuard** and **Cloudflare Tunnel** admin pages are automatically hidden in the Docker variant — they manage host-level systemd services that aren't reachable from inside the container. Use the [bare-OS install](https://github.com/mhdhaidarah/samm) if you need built-in VPN / tunnel management, or run cloudflared / wg-quick on the Docker host directly alongside SAMM.
 
 ---
 

@@ -18,22 +18,14 @@
 #   - freeradius exposes UDP 1812 + 1813 on the host via compose port mapping
 #   - MikroTik NAS points to the docker host's LAN IP for RADIUS
 #   - SAMM admin + customer portal: http://<host>:${SAMM_API_PORT:-8000}/
+#
+# Note: every SAMM service is written out in full (no YAML merge keys).
+# Docker Compose v2 handles `<<: *anchor` fine, but stricter YAML 1.2 parsers
+# (MikroTik's container feature, Portainer-on-RouterOS, kompose, etc.) reject
+# it as "empty image name" because merge keys were dropped from YAML 1.2.
+# Inlining keeps this compose file portable across all of them.
 
 name: samm
-
-x-samm-common: &samm-common
-  image: mhdhaidarah/samm:latest
-  restart: unless-stopped
-  environment: &samm-env
-    POSTGRES_HOST: postgres
-    POSTGRES_PORT: 5432
-    POSTGRES_DB: samm
-    POSTGRES_USER: samm
-    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    TZ: ${TZ:-UTC}
-  depends_on:
-    postgres:
-      condition: service_healthy
 
 services:
   postgres:
@@ -53,13 +45,22 @@ services:
       retries: 12
 
   samm-api:
-    <<: *samm-common
+    image: mhdhaidarah/samm:latest
+    restart: unless-stopped
     command: ["api"]
     environment:
-      <<: *samm-env
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: samm
+      POSTGRES_USER: samm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-UTC}
       SAMM_API_HOST: 0.0.0.0
       SAMM_API_PORT: 8000
       SAMM_API_WORKERS: 2
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "${SAMM_API_PORT:-8000}:8000"
     volumes:
@@ -70,22 +71,42 @@ services:
       - sammfreeradius:/etc/freeradius/3.0
 
   samm-radius:
-    <<: *samm-common
+    image: mhdhaidarah/samm:latest
+    restart: unless-stopped
     command: ["radius"]
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: samm
+      POSTGRES_USER: samm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-UTC}
     depends_on:
-      postgres: { condition: service_healthy }
-      samm-api: { condition: service_started }
+      postgres:
+        condition: service_healthy
+      samm-api:
+        condition: service_started
     volumes:
       - etcsamm:/etc/samm
       - sammvar:/opt/samm/var
       - sammlogs:/var/log/samm
 
   samm-worker:
-    <<: *samm-common
+    image: mhdhaidarah/samm:latest
+    restart: unless-stopped
     command: ["worker"]
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: samm
+      POSTGRES_USER: samm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-UTC}
     depends_on:
-      postgres: { condition: service_healthy }
-      samm-api: { condition: service_started }
+      postgres:
+        condition: service_healthy
+      samm-api:
+        condition: service_started
     cap_add:
       - NET_RAW
     sysctls:
@@ -96,22 +117,42 @@ services:
       - sammlogs:/var/log/samm
 
   samm-notification:
-    <<: *samm-common
+    image: mhdhaidarah/samm:latest
+    restart: unless-stopped
     command: ["notification"]
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: samm
+      POSTGRES_USER: samm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-UTC}
     depends_on:
-      postgres: { condition: service_healthy }
-      samm-api: { condition: service_started }
+      postgres:
+        condition: service_healthy
+      samm-api:
+        condition: service_started
     volumes:
       - etcsamm:/etc/samm
       - sammvar:/opt/samm/var
       - sammlogs:/var/log/samm
 
   samm-telegram:
-    <<: *samm-common
+    image: mhdhaidarah/samm:latest
+    restart: unless-stopped
     command: ["telegram"]
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: samm
+      POSTGRES_USER: samm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-UTC}
     depends_on:
-      postgres: { condition: service_healthy }
-      samm-api: { condition: service_started }
+      postgres:
+        condition: service_healthy
+      samm-api:
+        condition: service_started
     volumes:
       - etcsamm:/etc/samm
       - sammvar:/opt/samm/var
