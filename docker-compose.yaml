@@ -118,7 +118,7 @@ services:
       - sammlogs:/var/log/samm
 
   freeradius:
-    image: freeradius/freeradius-server:3
+    image: freeradius/freeradius-server:latest-3.2-alpine
     restart: unless-stopped
     depends_on:
       samm-api:
