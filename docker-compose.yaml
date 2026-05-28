@@ -49,6 +49,12 @@ services:
     restart: unless-stopped
     command: ["api"]
     environment:
+      # SAMM_ROLE is the parser-agnostic role dispatcher. Docker reads
+      # `command:` above; MikroTik's container feature drops that field
+      # on YAML import, so we ALSO pass the role as an env var (which
+      # every parser preserves). entrypoint.sh prefers SAMM_ROLE; both
+      # agree per service so behavior is identical on every platform.
+      SAMM_ROLE: api
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: samm
@@ -75,6 +81,7 @@ services:
     restart: unless-stopped
     command: ["radius"]
     environment:
+      SAMM_ROLE: radius  # see samm-api notes — parser-agnostic role hint
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: samm
@@ -96,6 +103,7 @@ services:
     restart: unless-stopped
     command: ["worker"]
     environment:
+      SAMM_ROLE: worker  # see samm-api notes — parser-agnostic role hint
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: samm
@@ -121,6 +129,7 @@ services:
     restart: unless-stopped
     command: ["notification"]
     environment:
+      SAMM_ROLE: notification  # see samm-api notes — parser-agnostic role hint
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: samm
@@ -142,6 +151,7 @@ services:
     restart: unless-stopped
     command: ["telegram"]
     environment:
+      SAMM_ROLE: telegram  # see samm-api notes — parser-agnostic role hint
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: samm
