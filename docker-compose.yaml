@@ -1,23 +1,18 @@
-# SAMM Docker Compose — repo-root version (always-latest).
+# SAMM Docker Compose — v3.6.8
+# version: 3.6.8
+# image-digest: sha256:047c31062b2bbc97ed563225d7d3baeb18a1d03a98f5c3d09ae840967ac8a59a
 #
-# This file uses the `mhdhaidarah/samm:latest` floating tag — handy for
-# users who clone this repo and bring the stack up manually, but it moves
-# whenever a new SAMM release is published.
+# CI substitutes 3.6.8 and sha256:047c31062b2bbc97ed563225d7d3baeb18a1d03a98f5c3d09ae840967ac8a59a at release time. Don't edit the
+# resulting docker-compose.yml directly except via the operator install.sh —
+# the host-updater.sh script downloads a fresh copy on each upgrade.
 #
-# For a digest-pinned (immutable) compose file matching a specific SAMM
-# release, grab the per-release version from GitHub Releases instead:
-#
-#   curl -fLO https://github.com/mhdhaidarah/samm-docker/releases/latest/download/docker-compose.yml
-#
-# Quickstart:
-#   cp .env.example .env
-#   $EDITOR .env          # set POSTGRES_PASSWORD and SAMM_PUBLIC_HOST
-#   docker compose up -d
+# Customer install:
+#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v3.6.8/install.sh | sudo bash
 #
 # Network:
-#   - freeradius exposes UDP 1812 + 1813 on the host via compose port mapping
-#   - MikroTik NAS points to the docker host's LAN IP for RADIUS
-#   - SAMM admin + customer portal: http://<host>:${SAMM_API_PORT:-8000}/
+#   - MikroTik NAS must point to the docker host's LAN IP for RADIUS.
+#   - freeradius exposes UDP 1812/1813 on the host via compose port mapping.
+#   - SAMM admin + customer portal at http://<host>:${SAMM_API_PORT:-8000}/
 #
 # Note: every SAMM service is written out in full (no YAML merge keys).
 # Docker Compose v2 handles `<<: *anchor` fine, but stricter YAML 1.2 parsers
@@ -45,15 +40,14 @@ services:
       retries: 12
 
   samm-api:
-    image: mhdhaidarah/samm:latest
+    image: mhdhaidarah/samm@sha256:047c31062b2bbc97ed563225d7d3baeb18a1d03a98f5c3d09ae840967ac8a59a
     restart: unless-stopped
     command: ["api"]
     environment:
-      # SAMM_ROLE is the parser-agnostic role dispatcher. Docker reads
-      # `command:` above; MikroTik's container feature drops that field
-      # on YAML import, so we ALSO pass the role as an env var (which
-      # every parser preserves). entrypoint.sh prefers SAMM_ROLE; both
-      # agree per service so behavior is identical on every platform.
+      # SAMM_ROLE is the parser-agnostic role dispatcher — Docker reads
+      # `command:` above, MikroTik's container feature reads this env var
+      # (it drops the `command:` field on YAML import). entrypoint.sh
+      # prefers SAMM_ROLE; both agree per service so behavior is identical.
       SAMM_ROLE: api
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -64,6 +58,12 @@ services:
       SAMM_API_HOST: 0.0.0.0
       SAMM_API_PORT: 8000
       SAMM_API_WORKERS: 2
+      # Optional WhatsApp QR bridge sidecar (see the wa-bridge service). On
+      # Docker its URL + token come from here and override any saved config;
+      # empty token when the bridge profile isn't enabled (harmless — the panel
+      # only uses it when the WhatsApp provider is "qr").
+      WA_BRIDGE_URL: http://wa-bridge:8787
+      WA_BRIDGE_TOKEN: ${WA_BRIDGE_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,10 +74,9 @@ services:
       - sammvar:/opt/samm/var
       - sammlogs:/var/log/samm
       - sammlocales:/opt/samm/app/locales
-      - sammfreeradius:/etc/freeradius/3.0
 
   samm-radius:
-    image: mhdhaidarah/samm:latest
+    image: mhdhaidarah/samm@sha256:047c31062b2bbc97ed563225d7d3baeb18a1d03a98f5c3d09ae840967ac8a59a
     restart: unless-stopped
     command: ["radius"]
     environment:
@@ -99,7 +98,7 @@ services:
       - sammlogs:/var/log/samm
 
   samm-worker:
-    image: mhdhaidarah/samm:latest
+    image: mhdhaidarah/samm@sha256:047c31062b2bbc97ed563225d7d3baeb18a1d03a98f5c3d09ae840967ac8a59a
     restart: unless-stopped
     command: ["worker"]
     environment:
@@ -125,7 +124,7 @@ services:
       - sammlogs:/var/log/samm
 
   samm-notification:
-    image: mhdhaidarah/samm:latest
+    image: mhdhaidarah/samm@sha256:047c31062b2bbc97ed563225d7d3baeb18a1d03a98f5c3d09ae840967ac8a59a
     restart: unless-stopped
     command: ["notification"]
     environment:
@@ -136,6 +135,9 @@ services:
       POSTGRES_USER: samm
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       TZ: ${TZ:-UTC}
+      # The notification worker sends WhatsApp — same bridge sidecar as samm-api.
+      WA_BRIDGE_URL: http://wa-bridge:8787
+      WA_BRIDGE_TOKEN: ${WA_BRIDGE_TOKEN:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -147,7 +149,7 @@ services:
       - sammlogs:/var/log/samm
 
   samm-telegram:
-    image: mhdhaidarah/samm:latest
+    image: mhdhaidarah/samm@sha256:047c31062b2bbc97ed563225d7d3baeb18a1d03a98f5c3d09ae840967ac8a59a
     restart: unless-stopped
     command: ["telegram"]
     environment:
@@ -168,17 +170,46 @@ services:
       - sammvar:/opt/samm/var
       - sammlogs:/var/log/samm
 
-  freeradius:
-    image: freeradius/freeradius-server:latest-3.2-alpine
+  # WhatsApp QR bridge — the unofficial Baileys sidecar, as a fully self-contained
+  # image (code + node_modules + git baked in by docker/wa-bridge.Dockerfile,
+  # multi-arch amd64+arm64, digest-pinned like the app + freeradius images).
+  # No bind-mount, no `command:` — so it runs identically on normal Docker AND on
+  # MikroTik's RouterOS container feature (which drops `command:` and can't mount
+  # host files). Part of the standard stack; it idles (no linked number, no
+  # traffic) until an operator picks the "qr" WhatsApp provider. The official
+  # Meta Cloud API path ignores it. Don't want it? `docker compose stop wa-bridge`.
+  wa-bridge:
+    image: mhdhaidarah/samm@sha256:f438bfe06d5d0b59839856e44295f01555ea75b1e113517e0da6609d12d53cb1
     restart: unless-stopped
+    environment:
+      # Empty fallback so a missing token never blocks the stack (the bridge is
+      # internal-only, not host-exposed); install.sh + host-updater.sh set it.
+      WA_BRIDGE_TOKEN: ${WA_BRIDGE_TOKEN:-}
+      TZ: ${TZ:-UTC}
     depends_on:
-      samm-api:
-        condition: service_started
+      - samm-api
+    volumes:
+      - wabridge_auth:/data/auth      # multi-device session — persists the QR link
+
+  # Custom SAMM FreeRADIUS image (built from docker/freeradius.Dockerfile).
+  # The stock freeradius image reads /etc/raddb (not /etc/freeradius/3.0) and
+  # ships without libpq, so the SAMM RADIUS config is baked in + enabled at
+  # build time; the DB password/host are filled into the SQL module from the
+  # env below by the image entrypoint at startup. sha256:d3488cd0c658f4c21a7da4344e646d903876617c0c6a48a700f0a2b6c4d31300 is the multi-arch
+  # image digest CI captures at release time.
+  freeradius:
+    image: mhdhaidarah/samm@sha256:d3488cd0c658f4c21a7da4344e646d903876617c0c6a48a700f0a2b6c4d31300
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-UTC}
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "1812:1812/udp"
       - "1813:1813/udp"
-    volumes:
-      - sammfreeradius:/etc/freeradius/3.0
 
 volumes:
   pgdata: {}
@@ -186,4 +217,4 @@ volumes:
   sammvar: {}
   sammlogs: {}
   sammlocales: {}
-  sammfreeradius: {}
+  wabridge_auth: {}      # WhatsApp bridge multi-device session
