@@ -1,63 +1,15 @@
-<div align="center">
+# SAMM — Docker distribution
 
-<img src="s-box-logo.svg" width="96" alt="SAMM logo" />
+The official Docker image for **SAMM** (SecuryTik Active MikroTik Manager) — a
+FreeRADIUS + PostgreSQL + FastAPI AAA stack for MikroTik ISPs (PPPoE / Hotspot /
+IPoE, billing, portals, WhatsApp/Telegram, IPv6).
 
-# SAMM — Docker
-
-### SecuryTik Active MikroTik Manager — Docker Compose distribution
-
-**ISP management platform for MikroTik PPPoE & Hotspot, packaged as Docker Compose**
-
-[![Release](https://img.shields.io/github/v/release/mhdhaidarah/samm-docker?style=flat-square&color=3b82f6&label=latest%20release)](https://github.com/mhdhaidarah/samm-docker/releases/latest)
-[![Docker Image](https://img.shields.io/badge/Docker%20Hub-mhdhaidarah%2Fsamm-2496ED?logo=docker&logoColor=white&style=flat-square)](https://hub.docker.com/r/mhdhaidarah/samm)
-[![Compose](https://img.shields.io/badge/Docker_Compose-v2-2496ED?logo=docker&logoColor=white&style=flat-square)](https://docs.docker.com/compose/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white&style=flat-square)](https://postgresql.org)
-[![FreeRADIUS](https://img.shields.io/badge/FreeRADIUS-3-CC0000?style=flat-square&logoColor=white)](https://freeradius.org)
-[![A SecuryTik product](https://img.shields.io/badge/a-SecuryTik%20product-22d3ee?style=flat-square)](https://securytik.com)
-
-[**samm.securytik.com**](https://samm.securytik.com) &nbsp;·&nbsp; [Documentation](https://samm.securytik.com/docs) &nbsp;·&nbsp; [Bare-OS install](https://github.com/mhdhaidarah/samm) &nbsp;·&nbsp; [Report a Bug](mailto:samm@securytik.com?subject=SAMM%20Docker%20Bug%20Report)
-
-</div>
-
----
-
-## Overview
-
-SAMM is an ISP management platform built on FreeRADIUS and PostgreSQL. It handles subscriber authentication, real-time usage enforcement, and billing for MikroTik PPPoE and Hotspot deployments — with a polished web portal for administrators and customers.
-
-This repository is the **Docker Compose distribution** of SAMM. Source stays closed: the published image `mhdhaidarah/samm` is built from Cython-compiled binaries — no `.py` source for the compiled modules. The bare-OS install lives at **[mhdhaidarah/samm →](https://github.com/mhdhaidarah/samm)**.
-
-```
-MikroTik(s) ──Auth/Acct──► freeradius (container, :1812/:1813)
-                ▲                       │
-                │                       ▼
-                └─ CoA / Disconnect ◄── samm-radius · samm-worker · samm-api · samm-notification · samm-telegram
-                                        │
-                                        ▼
-                                    postgres (container)
-```
-
-Every release publishes:
-
-- 🐳 **Docker image** `mhdhaidarah/samm:<ver>` to [Docker Hub](https://hub.docker.com/r/mhdhaidarah/samm), pinned to a sha256 digest. Multi-arch — **linux/amd64** and **linux/arm64** are both built and shipped under the same tag, so `docker pull` picks the right variant automatically.
-- 📦 **Compose bundle** (`docker-compose.yml`, `install.sh`, `host-updater.sh`, `.env.example`, `README.md`) to this repo's [Releases](https://github.com/mhdhaidarah/samm-docker/releases)
-
-CI in the private source repo fires both on every `v*` tag push, so the bare-OS tarball and this Docker bundle stay version-locked.
-
----
-
-## Two ways to install
-
-| | One-line install | Manual Compose |
-|---|---|---|
-| When | Hosts where `curl … \| sudo bash` is allowed | Restricted environments — locked-down boxes, behind allowlists, or "I want to read the file first" |
-| Command | `curl -fsSL … install.sh \| sudo bash` | `git clone` + edit `.env` + `docker compose up -d` |
-| Pinning | Pinned to the matching image digest (per release) | Tracks `mhdhaidarah/samm:latest` by default |
-| Pace | Drops everything into `/opt/samm-docker/` and starts containers | You control every step |
-
-Both end with SAMM running on the host's LAN IP, RADIUS on UDP 1812/1813, and the admin/customer portal at `http://<host>:8000/`.
-
----
+> **▶ Start here → [github.com/mhdhaidarah/samm-docker](https://github.com/mhdhaidarah/samm-docker)**
+> Don't pull these images by hand — use the **compose bundle** from the
+> **samm-docker** releases. It pins the exact multi-arch digests (app,
+> freeradius, wa-bridge) and wires the whole stack together, including the
+> optional WhatsApp QR bridge. One-line install below, MikroTik RouterOS
+> container instructions in the [docs](https://samm.securytik.com/docs).
 
 ## Quick install (Ubuntu / Debian)
 
@@ -66,183 +18,163 @@ curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/latest/download/i
     | sudo bash
 ```
 
-The installer detects Docker, installs it if missing, drops a `docker-compose.yml` + `.env` into `/opt/samm-docker/`, and brings the stack up. Safe to re-run for upgrades — `.env` is preserved.
+The installer detects Docker, installs it if missing, drops a
+`docker-compose.yml` + `.env` into `/opt/samm-docker/`, and brings the stack up.
 
 After ~30 seconds:
 
-- **Admin portal**     `http://<host>:8000/admin`
-- **Customer portal**  `http://<host>:8000/`
-- **RADIUS auth**      UDP 1812 on the host's LAN IP
+- **Admin portal**   `http://<host>:8000/admin`
+- **Customer portal** `http://<host>:8000/`
+- **RADIUS auth**     UDP 1812 on the host's LAN IP
 - **RADIUS accounting** UDP 1813 on the host's LAN IP
 
-Default credentials: `admin` / `samm` — **change on first login**.
-
----
-
-## Manual Compose install (no curl-pipe)
-
-For hosts that can't (or shouldn't) run `curl | bash` directly — e.g. machines behind strict egress policies, or any operator who'd rather audit every step.
-
-```bash
-git clone https://github.com/mhdhaidarah/samm-docker.git
-cd samm-docker
-cp .env.example .env
-$EDITOR .env                    # set POSTGRES_PASSWORD and SAMM_PUBLIC_HOST
-docker compose up -d
-```
-
-The repo-root `docker-compose.yaml` references `mhdhaidarah/samm:latest`, so a plain `docker compose pull && docker compose up -d` always brings you to the current version.
-
-If you want a **version-pinned** compose file (recommended for production — pinned by sha256 digest, immutable), grab the per-release one from the matching GitHub Release:
-
-```bash
-curl -fLO https://github.com/mhdhaidarah/samm-docker/releases/latest/download/docker-compose.yml
-```
-
-That digest-pinned version is what `install.sh` deploys.
-
----
+Default credentials: **`admin` / `admin`** — **change on first login**.
 
 ## Windows (Docker Desktop) — evaluation only
 
 You can run SAMM on Windows via Docker Desktop + WSL2. **Not recommended for production** because:
 
-- Windows **sleep / hibernate / lid-close stops the containers** — there's no equivalent of a Linux server that just stays up
-- Auto-restart on host boot only fires when WSL boots (not when Windows boots)
+- Windows sleep / hibernate / lid-close stops the containers
+- Boot-restart only fires when WSL boots (not on Windows boot)
 - Daily auto-update cron only runs while WSL is alive
-- No 24/7 reliability guarantee for RADIUS auth and accounting
+- No 24/7 reliability for RADIUS auth and accounting
 
-Use it for evaluation / demo, then deploy production on a Linux VM (Hyper-V, Proxmox, ESXi) or a small physical box (NUC running Ubuntu Server).
+Use it for evaluation, then deploy production on a Linux VM or small physical box.
 
-**Evaluation steps:**
+**Evaluation steps from PowerShell** (no WSL terminal needed; Docker Desktop's WSL backend handles it):
 
-1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop) and let it set up the WSL2 backend.
-
-2. Open **PowerShell** (no admin needed) and grab the compose bundle:
-   ```powershell
-   mkdir C:\samm-docker
-   cd C:\samm-docker
-   curl.exe -fLO https://github.com/mhdhaidarah/samm-docker/releases/latest/download/docker-compose.yml
-   curl.exe -fLO https://github.com/mhdhaidarah/samm-docker/releases/latest/download/env.example
-   copy env.example .env
-   notepad .env
-   ```
-   *(Use `curl.exe` explicitly — PowerShell's `curl` alias is `Invoke-WebRequest` with different flags.)*
-
-3. In Notepad, edit `.env`:
-   - `POSTGRES_PASSWORD=` — any strong random string (≥16 chars)
-   - `SAMM_PUBLIC_HOST=` — your Windows LAN IPv4 (run `ipconfig` to find it)
-
-   Save and close.
-
-4. Pull and start:
-   ```powershell
-   docker compose pull
-   docker compose up -d
-   ```
-
-5. **Watch it boot in Docker Desktop** → Containers tab → the `samm` group shows 7 services (postgres, samm-api, samm-radius, samm-worker, samm-notification, samm-telegram, freeradius). All turn green within ~30 s.
-
-6. Open `http://localhost:8000/admin` — login `admin` / `samm` (change immediately).
-
-7. **If testing RADIUS from a real MikroTik**: Windows Defender Firewall may prompt the first time MikroTik sends UDP 1812 — accept it. Or pre-allow:
-   ```powershell
-   New-NetFirewallRule -DisplayName "SAMM RADIUS" -Direction Inbound -Protocol UDP -LocalPort 1812,1813 -Action Allow
-   ```
-   Point MikroTik at `<windows-ip>:1812/1813`.
-
-**Day-to-day:**
-
-- Right-click the `samm` stack in Docker Desktop → Stop / Start / Logs
-- Or from PowerShell: `cd C:\samm-docker; docker compose down` and `docker compose up -d`
-
-**Tear down completely:**
 ```powershell
+mkdir C:\samm-docker
 cd C:\samm-docker
-docker compose down -v   # -v wipes postgres + Fernet key
-Remove-Item -Recurse C:\samm-docker
+curl.exe -fLO https://github.com/mhdhaidarah/samm-docker/releases/latest/download/docker-compose.yml
+curl.exe -fLO https://github.com/mhdhaidarah/samm-docker/releases/latest/download/env.example
+copy env.example .env
+notepad .env   # set POSTGRES_PASSWORD and SAMM_PUBLIC_HOST (your Windows LAN IP)
+docker compose pull
+docker compose up -d
 ```
 
----
+Watch it boot in Docker Desktop → Containers → the `samm` stack expands into 7 services. Open `http://localhost:8000/admin` (login **`admin` / `admin`**).
 
-## MikroTik containers (RouterOS 7) — experimental
+If MikroTik will hit this Windows host, allow UDP 1812/1813 through Windows Firewall:
+```powershell
+New-NetFirewallRule -DisplayName "SAMM RADIUS" -Direction Inbound -Protocol UDP -LocalPort 1812,1813 -Action Allow
+```
 
-Since v2.2.6 the image ships as **multi-arch (amd64 + arm64)** and the compose file is portable to MikroTik's RouterOS 7 container feature. **Works on**:
+Tear down: `docker compose down -v` (the `-v` wipes the postgres + Fernet key volumes).
 
-- **arm64 MikroTik** — RB5009, hAP ax², CCR2004-1G-12S+2XS, CCR2116, CCR2216 (most modern devices)
-- **amd64 MikroTik** — CCR2004-1G-2XS-PCIe (amd64 SKU), x86 RouterOS, CHR running on amd64 hypervisors
+## MikroTik (RouterOS 7 container feature) — experimental
 
-**Does NOT work on**:
+Supported on amd64 (CCR2004-1G-2XS-PCIe, x86 RouterOS, CHR) and arm64
+(RB5009, hAP ax², CCR2004/2116/2216) — the SAMM image is multi-arch since
+v2.2.6 so RouterOS pulls the right variant transparently.
 
-- armv7 devices (hEX, RB750, older RB models) — too little RAM/CPU, image not built for armv7
-- mipsbe/mipsle/smips/tile/ppc devices — no container support at all in RouterOS
+In WebFig/WinBox: **Container → Apps → New → YAML**, paste the same
+`docker-compose.yaml` from the latest GitHub release, point it at an
+ext4-formatted USB/microSD, submit. RouterOS pulls each image and wires
+the services up.
 
-### Prerequisites on the MikroTik
+Full walkthrough (prep, disk formatting, RADIUS wiring) lives at
+<https://samm.securytik.com/docs#doc-install> under *Option D*.
 
-- RouterOS 7.4+ with the `container` package installed (download the matching version from mikrotik.com/download → "Extra packages" zip → upload `container-*.npk` → reboot)
-- A USB drive or microSD mounted as a disk for image storage (`/disk1/`)
-- A veth + bridge plumbed for container networking (see [RouterOS container docs](https://help.mikrotik.com/docs/spaces/ROS/pages/84901929/Container))
-
-### Install path
-
-The `docker-compose.yaml` in this repo is plain YAML 1.2 (no merge keys), so tooling that parses compose-style YAML on RouterOS reads each service cleanly. For a typical setup, deploy each service as an individual RouterOS container — `samm-api`, `samm-radius`, `samm-worker`, `samm-notification`, `samm-telegram`, `freeradius`, `postgres` — pointing them at a shared veth/bridge.
-
-This deployment path is **experimental**: SAMM hasn't been certified against the full RouterOS container lifecycle. The bare-OS install on a small Linux box (NUC, Pi 4) remains the recommended path for production.
-
----
+> **Note for maintainers.** MikroTik's compose parser drops the `command:`
+> field on YAML import. Every SAMM service therefore carries BOTH
+> `command: ["<role>"]` and `environment: SAMM_ROLE: <role>` for the same
+> role; `entrypoint.sh` reads `${SAMM_ROLE:-${1:-api}}` so either source
+> works. Keep both fields in lockstep when adding services.
 
 ## What it ships
 
-| Container | Image | Role |
-|---|---|---|
-| `postgres` | `postgres:16-alpine` | Subscriber + billing + accounting DB |
-| `samm-api` | `mhdhaidarah/samm` | FastAPI admin + customer portal (port 8000) |
-| `samm-radius` | `mhdhaidarah/samm` | Time-driven AAA: expiration / quota / daily reset + CoA dispatch |
-| `samm-worker` | `mhdhaidarah/samm` | MikroTik API inventory + ICMP ping sweep |
-| `samm-notification` | `mhdhaidarah/samm` | Email + Telegram notification outbox drain |
-| `samm-telegram` | `mhdhaidarah/samm` | Long-polling Telegram self-service bot |
-| `freeradius` | `freeradius/freeradius-server:3` | FreeRADIUS with SAMM-rendered config |
+| Container | Role |
+| --- | --- |
+| `postgres` | Postgres 16 on the private compose bridge |
+| `samm-api` | FastAPI admin + customer portal (exposes :8000) |
+| `samm-radius` | Time-driven AAA + CoA sender |
+| `samm-worker` | MikroTik inventory + ICMP ping sweep (`NET_RAW`) |
+| `samm-notification` | Email/Telegram/SMS/WhatsApp notification outbox drain |
+| `samm-telegram` | Long-polling Telegram bot |
+| `freeradius` | Stock `freeradius/freeradius-server:3`, SAMM config mounted |
+| `wa-bridge` | WhatsApp QR bridge (idles until the QR provider is used) — self-contained multi-arch image |
 
-All five SAMM containers run the same `mhdhaidarah/samm:<ver>` image — different `command:` per role. The release's `docker-compose.yml` pins the image by `sha256` digest, so even if Docker Hub were compromised a stale digest can't substitute a different image.
+The app + freeradius + wa-bridge images are all `mhdhaidarah/samm` (tags
+`<ver>`, `freeradius-<ver>`, `wa-bridge-<ver>`), each pinned to a sha256 digest
+in the compose file and built multi-arch (amd64 + arm64). App source stays
+closed: it's built from Cython-compiled binaries — no `.py` source.
 
-### Features (same as bare-OS)
+## WhatsApp QR bridge (optional)
 
-- **AAA core** — FreeRADIUS 3 + PostgreSQL, PAP/CHAP, PPPoE + Hotspot, hybrid CoA (CoA-Update → fallback Disconnect), dynamic NAS registration
-- **Plans & limits** — 4 independent limits per plan (`expiration`, `quota`, `uptime`, `daily`), speed-window scheduling, non-resettable billing counters
-- **Financial accounting** — double-entry engine, invoices, expenses, resellers, depreciation
-- **Admin portal** — customer + plan management, live MikroTik inventory, voucher card generation, role-based permissions
-- **Customer portal** — self-service usage / invoices / tickets
-- **Telegram self-service bot** — interactive verify, profile, plan, ticket flows
-- **6 languages** (English / Arabic RTL / Turkish / French / Spanish / German), **11 themes**, all switchable per user
+WhatsApp has two providers under **Notifications → Channels → WhatsApp**:
 
----
+- **Meta WhatsApp Cloud API** *(official, recommended)* — token + Phone-Number-ID,
+  nothing extra to run; works out of the box.
+- **Unofficial QR link** *(at your own risk)* — a small Baileys sidecar that
+  **already runs as part of the stack** (the `wa-bridge` service — nothing to
+  enable). Just open the WhatsApp channel, pick **Unofficial QR link**, and scan
+  the QR. It idles (no linked number, no traffic) until you do.
 
-## Network requirements
+  The bridge is a **self-contained image** (`mhdhaidarah/samm:wa-bridge-<ver>`,
+  multi-arch) with code + deps baked in — so it starts instantly and runs on
+  normal Docker **and on MikroTik's RouterOS container feature** alike (no
+  bind-mount, no `command:`). The linked session persists in the `wabridge_auth`
+  volume; `WA_BRIDGE_TOKEN` is auto-generated in `.env`. Don't want it running?
+  `docker compose stop wa-bridge`.
 
-- Host needs **UDP 1812 + 1813** free. **Don't run docker SAMM alongside a bare-OS SAMM** on the same host — they'd fight for those ports. If switching from bare-OS, run `apt purge freeradius postgresql` first (back up first if you have data).
-- The `freeradius` container exposes UDP 1812 + 1813 via standard compose port mapping. **No host networking needed** — the kernel forwards inbound UDP to the container transparently.
-- MikroTik NAS points to **the host's LAN IP** on 1812/1813. The shared secret is set in the SAMM admin portal under *System → RADIUS*.
-- Outbound to MikroTik routers (API on `:8728`, CoA on `:3799`, ICMP for monitoring) works over the standard Docker bridge with NAT — no special routing.
+## Boot startup
 
----
+`install.sh` installs `samm-docker.service` (systemd, enabled). The stack
+comes back up after a host reboot even if you had run `docker compose down`
+before shutdown. Belt-and-suspenders alongside compose's
+`restart: unless-stopped`: the restart policy survives Docker daemon
+restarts; the systemd unit covers explicit-down + reboot.
 
-## Configuration
+Disable: `sudo systemctl disable samm-docker.service`.
 
-`.env` (created by `install.sh` from `.env.example`):
+## Network
+
+- Host needs UDP 1812 + 1813 free. **Coexisting with a bare-OS SAMM install
+  is not supported** — if you previously ran `install.sh` from
+  `mhdhaidarah/samm` on this host, `apt purge freeradius postgresql` before
+  installing the docker variant.
+- The `freeradius` container exposes 1812 + 1813 via standard compose port
+  mapping (no host networking).
+- MikroTik NAS points to **the host's LAN IP** on 1812/1813. The shared
+  secret is set in the SAMM admin portal under *System → RADIUS*.
+
+## Upgrading
+
+`install.sh` sets up auto-update for you:
+
+- `/opt/samm-docker/host-updater.sh` — the upgrade script
+- `/etc/cron.d/samm-docker` — runs `host-updater.sh` **daily at 04:00**
+- `/var/log/samm-update.log` — captures stdout + stderr each run
+
+Each run: query the latest release tag, download the matching digest-pinned
+`docker-compose.yml`, `docker compose pull && docker compose up -d`. No-op when
+nothing's new.
+
+Disable auto-update: `sudo rm /etc/cron.d/samm-docker`. Change the schedule
+by editing that file.
+
+Manual upgrade:
 
 ```bash
-POSTGRES_PASSWORD=<auto-generated 32-byte urlsafe>
-SAMM_PUBLIC_HOST=<auto-detected LAN IP>
-SAMM_API_PORT=8000
-TZ=UTC
+sudo curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/latest/download/install.sh \
+    | sudo bash
 ```
 
-Persisted state lives in two Docker volumes:
+Re-running `install.sh` preserves `.env`; it only refreshes `docker-compose.yml`
+and pulls the new image.
 
-- `samm_pgdata` — Postgres data files
-- `samm_etcsamm` — Fernet key (`secret.key`) + the auto-rendered `samm.yaml`
+## Backup
 
-The Fernet key encrypts MikroTik API passwords stored in the DB. **Back up both volumes together** — losing `samm_etcsamm` means losing the ability to decrypt those passwords.
+Two volumes carry critical state:
+
+- `samm_pgdata` — Postgres data
+- `samm_etcsamm` — Fernet key (`secret.key`) and the rendered `samm.yaml`
+
+**Losing `samm_etcsamm` means losing the Fernet key**, which means you can no
+longer decrypt MikroTik API passwords stored in the DB. Back them up
+together:
 
 ```bash
 sudo docker run --rm \
@@ -252,119 +184,52 @@ sudo docker run --rm \
     alpine tar czf "/out/samm-backup-$(date +%F).tar.gz" -C /src .
 ```
 
----
-
-## Boot startup
-
-`install.sh` installs `samm-docker.service` (systemd, enabled). The stack comes back up after a host reboot — even if you ran `docker compose down` before shutdown. Belt-and-suspenders alongside compose's `restart: unless-stopped`: the restart policy survives Docker daemon restarts, the systemd unit covers explicit-down + reboot.
-
-```bash
-systemctl status samm-docker            # see boot-unit status
-sudo systemctl disable samm-docker      # opt out of boot-start
-sudo systemctl enable samm-docker       # opt back in
-```
-
----
-
-## Upgrading
-
-### Automatic (cron — set up for you)
-
-`install.sh` configures auto-update — nothing to do:
-
-- `/opt/samm-docker/host-updater.sh` — the upgrade script
-- `/etc/cron.d/samm-docker` — runs `host-updater.sh` **daily at 04:00**
-- `/var/log/samm-update.log` — captures stdout + stderr each run
-
-Each run: queries the latest release tag, downloads the matching digest-pinned `docker-compose.yml`, then `docker compose pull && docker compose up -d`. No-op when nothing's new.
-
-Disable: `sudo rm /etc/cron.d/samm-docker`. Change schedule by editing that file.
-
-### Manual
-
-Re-run the installer:
-
-```bash
-sudo curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/latest/download/install.sh \
-    | sudo bash
-```
-
-This refreshes the compose file + pulls the new image. **`.env` is preserved.**
-
-Or with the manual Compose path:
-
-```bash
-cd /path/to/your/samm-docker
-git pull
-docker compose pull
-docker compose up -d
-```
-
----
-
-## Service management
-
-```bash
-cd /opt/samm-docker         # (or your install dir)
-
-docker compose ps           # status of all containers
-docker compose logs -f      # follow logs from all services
-docker compose logs -f samm-api samm-radius   # follow specific services
-docker compose restart samm-api               # restart one service
-docker compose down         # stop the stack (keep volumes)
-docker compose down -v      # stop + WIPE volumes (postgres + fernet key)
-```
-
----
-
-## Licensing
-
-Each install is licensed per device:
-
-| Tier | AAA users | Hotspot cards | NAS / routers |
-|---|---|---|---|
-| **Free** | 100 | 500 | 2 |
-| **Pro** | 2,000 | 5,000 | 5 |
-| **Pro Max** | unlimited | unlimited | unlimited |
-
-Activate and manage licensing from **System → License** in the admin portal. Same license server as the bare-OS install — `https://license-samm.securytik.com`.
-
-See [samm.securytik.com](https://samm.securytik.com) for pricing.
-
----
-
 ## v1 limitations
 
-These work in the bare-OS install but **not yet** in the Docker variant:
+These features work in the bare-OS install but **not yet** in docker:
 
-- **Staged license lockdown** — the in-process license check still throttles the data plane and the reactivation wall in the admin portal still shows, but the enforcer doesn't stop containers under soft/hard lockdown in v1.
-- **Dynamic FreeRADIUS config reload** — changes via the admin UI need `docker compose restart freeradius` to take effect.
+- **Staged license lockdown** (soft/hard stops on samm-worker etc.) — the
+  in-process license check still throttles the data plane and the
+  reactivation wall in the admin portal still shows, but the lockdown
+  enforcer doesn't stop containers in v1.
+- **Dynamic FreeRADIUS config reload** — changes via the admin UI require
+  `docker compose restart freeradius` to take effect in v1.
 
-**Note (since v2.2.6):** The **WireGuard** and **Cloudflare Tunnel** admin pages are automatically hidden in the Docker variant — they manage host-level systemd services that aren't reachable from inside the container. Use the [bare-OS install](https://github.com/mhdhaidarah/samm) if you need built-in VPN / tunnel management, or run cloudflared / wg-quick on the Docker host directly alongside SAMM.
+**Since v2.2.6:** The **WireGuard** and **Cloudflare Tunnel** admin pages are
+automatically hidden in the docker variant. They manage host-level systemd
+services that aren't reachable from inside the container; the admin sidebar
+hides them and the routes redirect with a "configure on the host" notice.
+Use the bare-OS install if you need built-in VPN / tunnel management.
 
----
+## Multi-arch + MikroTik containers
+
+Since v2.2.6 the published image is **multi-arch** — `linux/amd64` and
+`linux/arm64` ship under the same tag. `docker pull` and Compose pick the
+right variant transparently.
+
+This unlocks two new deployment targets:
+
+- **Apple-silicon Docker Desktop** (M1/M2/M3 Macs) — runs native, no Rosetta.
+- **MikroTik containers** (RouterOS 7.4+) on arm64 hardware — RB5009, hAP ax²,
+  CCR2004/2116/2216, and similar. The repo-root compose file is plain YAML
+  1.2 (no merge keys) so RouterOS's container parser reads it cleanly.
+
+armv7 devices and the smaller mipsbe/smips MikroTik boards are not supported —
+the Python/FastAPI/Postgres/freeradius stack needs more headroom than those
+SKUs provide. The bare-OS install on a small Linux box remains the
+recommended production path; MikroTik-on-container is experimental in v1.
 
 ## Uninstall
 
 ```bash
 cd /opt/samm-docker
-docker compose down -v      # WIPES postgres + the Fernet key — back up first
+docker compose down -v   # -v wipes the postgres volume AND the Fernet key
 sudo rm -rf /opt/samm-docker
 ```
 
----
+## Support
 
-## Documentation & support
+- Issues: https://github.com/mhdhaidarah/samm/issues
+- Docs:   https://samm.securytik.com/docs
 
-- 📖 **Full guide:** [samm.securytik.com/docs](https://samm.securytik.com/docs) — install, plans, subscribers, limits, and the complete operator manual
-- 🖥️ **Bare-OS install instead:** [github.com/mhdhaidarah/samm](https://github.com/mhdhaidarah/samm)
-- 🐛 **Report a bug:** [samm@securytik.com](mailto:samm@securytik.com?subject=SAMM%20Docker%20Bug%20Report)
-- 💡 **Request a feature:** [samm@securytik.com](mailto:samm@securytik.com?subject=SAMM%20Docker%20Feature%20Request)
-
----
-
-<div align="center">
-
-Built by [**SecuryTik**](https://securytik.com) &nbsp;·&nbsp; SAMM is a SecuryTik product
-
-</div>
+Built by [SecuryTik](https://securytik.com).
