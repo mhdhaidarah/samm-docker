@@ -1,8 +1,11 @@
 # SAMM — Docker distribution
 
 The official Docker image for **SAMM** (SecuryTik Active MikroTik Manager) — a
-FreeRADIUS + PostgreSQL + FastAPI AAA stack for MikroTik ISPs (PPPoE / Hotspot /
-IPoE, billing, portals, WhatsApp/Telegram, IPv6).
+FreeRADIUS + PostgreSQL + FastAPI AAA stack for MikroTik ISPs: PPPoE / Hotspot /
+DHCP-IPoE access, IPv6 dual-stack, plans & limits, double-entry billing with
+online payments (Stripe / Binance / PayPal) + QuickBooks/Xero export, REST API +
+webhooks, admin & customer portals, Email/Telegram/SMS/WhatsApp notifications,
+and an HA replication runbook.
 
 > **▶ Start here → [github.com/mhdhaidarah/samm-docker](https://github.com/mhdhaidarah/samm-docker)**
 > Don't pull these images by hand — use the **compose bundle** from the
@@ -54,7 +57,7 @@ docker compose pull
 docker compose up -d
 ```
 
-Watch it boot in Docker Desktop → Containers → the `samm` stack expands into 7 services. Open `http://localhost:8000/admin` (login **`admin` / `admin`**).
+Watch it boot in Docker Desktop → Containers → the `samm` stack expands into 8 services. Open `http://localhost:8000/admin` (login **`admin` / `admin`**).
 
 If MikroTik will hit this Windows host, allow UDP 1812/1813 through Windows Firewall:
 ```powershell
@@ -63,7 +66,7 @@ New-NetFirewallRule -DisplayName "SAMM RADIUS" -Direction Inbound -Protocol UDP 
 
 Tear down: `docker compose down -v` (the `-v` wipes the postgres + Fernet key volumes).
 
-## MikroTik (RouterOS 7 container feature) — experimental
+## MikroTik (RouterOS 7 container feature)
 
 Supported on amd64 (CCR2004-1G-2XS-PCIe, x86 RouterOS, CHR) and arm64
 (RB5009, hAP ax², CCR2004/2116/2216) — the SAMM image is multi-arch since
@@ -78,10 +81,12 @@ Full walkthrough (prep, disk formatting, RADIUS wiring) lives at
 <https://samm.securytik.com/docs#doc-install> under *Option D*.
 
 > **Note for maintainers.** MikroTik's compose parser drops the `command:`
-> field on YAML import. Every SAMM service therefore carries BOTH
+> field on YAML import. Every SAMM **app** service therefore carries BOTH
 > `command: ["<role>"]` and `environment: SAMM_ROLE: <role>` for the same
 > role; `entrypoint.sh` reads `${SAMM_ROLE:-${1:-api}}` so either source
-> works. Keep both fields in lockstep when adding services.
+> works. Keep both fields in lockstep when adding app services. (`wa-bridge`
+> needs neither — its role is baked into the image's CMD, which is exactly
+> what makes it RouterOS-proof.)
 
 ## What it ships
 
@@ -167,10 +172,12 @@ and pulls the new image.
 
 ## Backup
 
-Two volumes carry critical state:
+Three volumes carry state worth keeping:
 
 - `samm_pgdata` — Postgres data
 - `samm_etcsamm` — Fernet key (`secret.key`) and the rendered `samm.yaml`
+- `samm_wabridge_auth` — the WhatsApp QR bridge's linked session (losing it
+  just means re-scanning the QR — include it if you use the QR provider)
 
 **Losing `samm_etcsamm` means losing the Fernet key**, which means you can no
 longer decrypt MikroTik API passwords stored in the DB. Back them up
@@ -180,22 +187,23 @@ together:
 sudo docker run --rm \
     -v samm_pgdata:/src/pgdata:ro \
     -v samm_etcsamm:/src/etcsamm:ro \
+    -v samm_wabridge_auth:/src/wabridge_auth:ro \
     -v "$(pwd):/out" \
     alpine tar czf "/out/samm-backup-$(date +%F).tar.gz" -C /src .
 ```
 
-## v1 limitations
+## Docker-variant limitations
 
-These features work in the bare-OS install but **not yet** in docker:
+These work in the bare-OS install but **not** in the Docker variant:
 
 - **Staged license lockdown** (soft/hard stops on samm-worker etc.) — the
   in-process license check still throttles the data plane and the
   reactivation wall in the admin portal still shows, but the lockdown
-  enforcer doesn't stop containers in v1.
+  enforcer doesn't stop containers.
 - **Dynamic FreeRADIUS config reload** — changes via the admin UI require
-  `docker compose restart freeradius` to take effect in v1.
+  `docker compose restart freeradius` to take effect.
 
-**Since v2.2.6:** The **WireGuard** and **Cloudflare Tunnel** admin pages are
+The **WireGuard** and **Cloudflare Tunnel** admin pages are
 automatically hidden in the docker variant. They manage host-level systemd
 services that aren't reachable from inside the container; the admin sidebar
 hides them and the routes redirect with a "configure on the host" notice.
@@ -203,7 +211,7 @@ Use the bare-OS install if you need built-in VPN / tunnel management.
 
 ## Multi-arch + MikroTik containers
 
-Since v2.2.6 the published image is **multi-arch** — `linux/amd64` and
+The published images are **multi-arch** — `linux/amd64` and
 `linux/arm64` ship under the same tag. `docker pull` and Compose pick the
 right variant transparently.
 
@@ -217,7 +225,7 @@ This unlocks two new deployment targets:
 armv7 devices and the smaller mipsbe/smips MikroTik boards are not supported —
 the Python/FastAPI/Postgres/freeradius stack needs more headroom than those
 SKUs provide. The bare-OS install on a small Linux box remains the
-recommended production path; MikroTik-on-container is experimental in v1.
+recommended production path for larger deployments; MikroTik-on-container suits small/branch sites.
 
 ## Uninstall
 
