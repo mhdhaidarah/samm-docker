@@ -1,13 +1,13 @@
-# SAMM Docker Compose — v3.6.16
-# version: 3.6.16
-# image-digest: sha256:6202474ca785313623fb31bfd460ffd0159279fddc5f2a44af7cab976d064e8a
+# SAMM Docker Compose — v3.6.17
+# version: 3.6.17
+# image-digest: sha256:3ba4ae8bcc4c308cad2ca4122593317a8ebaa5f9386d606aa7362b54409ab77e
 #
-# CI substitutes 3.6.16 and sha256:6202474ca785313623fb31bfd460ffd0159279fddc5f2a44af7cab976d064e8a at release time. Don't edit the
+# CI substitutes 3.6.17 and sha256:3ba4ae8bcc4c308cad2ca4122593317a8ebaa5f9386d606aa7362b54409ab77e at release time. Don't edit the
 # resulting docker-compose.yml directly except via the operator install.sh —
 # the host-updater.sh script downloads a fresh copy on each upgrade.
 #
 # Customer install:
-#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v3.6.16/install.sh | sudo bash
+#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v3.6.17/install.sh | sudo bash
 #
 # Network:
 #   - MikroTik NAS must point to the docker host's LAN IP for RADIUS.
@@ -40,7 +40,7 @@ services:
       retries: 12
 
   samm-api:
-    image: mhdhaidarah/samm@sha256:6202474ca785313623fb31bfd460ffd0159279fddc5f2a44af7cab976d064e8a
+    image: mhdhaidarah/samm@sha256:3ba4ae8bcc4c308cad2ca4122593317a8ebaa5f9386d606aa7362b54409ab77e
     restart: unless-stopped
     command: ["api"]
     environment:
@@ -76,7 +76,7 @@ services:
       - sammlocales:/opt/samm/app/locales
 
   samm-radius:
-    image: mhdhaidarah/samm@sha256:6202474ca785313623fb31bfd460ffd0159279fddc5f2a44af7cab976d064e8a
+    image: mhdhaidarah/samm@sha256:3ba4ae8bcc4c308cad2ca4122593317a8ebaa5f9386d606aa7362b54409ab77e
     restart: unless-stopped
     command: ["radius"]
     environment:
@@ -98,7 +98,7 @@ services:
       - sammlogs:/var/log/samm
 
   samm-worker:
-    image: mhdhaidarah/samm@sha256:6202474ca785313623fb31bfd460ffd0159279fddc5f2a44af7cab976d064e8a
+    image: mhdhaidarah/samm@sha256:3ba4ae8bcc4c308cad2ca4122593317a8ebaa5f9386d606aa7362b54409ab77e
     restart: unless-stopped
     command: ["worker"]
     environment:
@@ -124,7 +124,7 @@ services:
       - sammlogs:/var/log/samm
 
   samm-notification:
-    image: mhdhaidarah/samm@sha256:6202474ca785313623fb31bfd460ffd0159279fddc5f2a44af7cab976d064e8a
+    image: mhdhaidarah/samm@sha256:3ba4ae8bcc4c308cad2ca4122593317a8ebaa5f9386d606aa7362b54409ab77e
     restart: unless-stopped
     command: ["notification"]
     environment:
@@ -149,7 +149,7 @@ services:
       - sammlogs:/var/log/samm
 
   samm-telegram:
-    image: mhdhaidarah/samm@sha256:6202474ca785313623fb31bfd460ffd0159279fddc5f2a44af7cab976d064e8a
+    image: mhdhaidarah/samm@sha256:3ba4ae8bcc4c308cad2ca4122593317a8ebaa5f9386d606aa7362b54409ab77e
     restart: unless-stopped
     command: ["telegram"]
     environment:
@@ -179,7 +179,7 @@ services:
   # traffic) until an operator picks the "qr" WhatsApp provider. The official
   # Meta Cloud API path ignores it. Don't want it? `docker compose stop wa-bridge`.
   wa-bridge:
-    image: mhdhaidarah/samm@sha256:dd99a059d2c5a39b453484ecb73dc0dc94100d40877fd8fb044789526c7edcd8
+    image: mhdhaidarah/samm@sha256:df9a5cdc63ee325deca0c64337d372bec85854bd420a904d5f7f8f53c7c32903
     restart: unless-stopped
     environment:
       # Empty fallback so a missing token never blocks the stack (the bridge is
@@ -195,10 +195,10 @@ services:
   # The stock freeradius image reads /etc/raddb (not /etc/freeradius/3.0) and
   # ships without libpq, so the SAMM RADIUS config is baked in + enabled at
   # build time; the DB password/host are filled into the SQL module from the
-  # env below by the image entrypoint at startup. sha256:c036a099ec5a47aa1ae9f040e7b773744d91d74b60f08d7d7128abb397062aa9 is the multi-arch
+  # env below by the image entrypoint at startup. sha256:13c635de7c36381945d639ac6b4877de4f25dc8c184bdfdc997983f93d6259e2 is the multi-arch
   # image digest CI captures at release time.
   freeradius:
-    image: mhdhaidarah/samm@sha256:c036a099ec5a47aa1ae9f040e7b773744d91d74b60f08d7d7128abb397062aa9
+    image: mhdhaidarah/samm@sha256:13c635de7c36381945d639ac6b4877de4f25dc8c184bdfdc997983f93d6259e2
     restart: unless-stopped
     environment:
       POSTGRES_HOST: postgres
