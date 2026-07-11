@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # SAMM Docker installer — one-shot bootstrap.
-# Generated for SAMM v3.7.0.
+# Generated for SAMM v3.8.0.
 #
-#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v3.7.0/install.sh | sudo bash
+#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v3.8.0/install.sh | sudo bash
 #
 # What this does:
 #   1. Verify root + supported OS (Ubuntu/Debian)
 #   2. Install Docker engine + compose plugin if missing
 #   3. Create /opt/samm-docker/
-#   4. Download docker-compose.yml + .env.example for SAMM v3.7.0
+#   4. Download docker-compose.yml + .env.example for SAMM v3.8.0
 #   5. Generate a secure POSTGRES_PASSWORD into .env (preserves an existing .env)
 #   6. docker compose pull && docker compose up -d
 #   7. Print admin URL + first-login info
@@ -16,7 +16,7 @@
 # Safe to re-run — upgrades the compose file + image; never overwrites .env.
 set -euo pipefail
 
-VERSION="3.7.0"
+VERSION="3.8.0"
 INSTALL_DIR=/opt/samm-docker
 REPO=mhdhaidarah/samm-docker
 RELEASE_URL="https://github.com/${REPO}/releases/download/v${VERSION}"
