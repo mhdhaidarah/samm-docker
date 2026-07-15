@@ -18,10 +18,10 @@
 # Safe to re-run — upgrades the compose file + image; never loses your password.
 set -euo pipefail
 
-VERSION="3.9.1"
+SAMM_VER="3.9.1"
 INSTALL_DIR=/opt/samm-docker
 REPO=mhdhaidarah/samm-docker
-RELEASE_URL="https://github.com/${REPO}/releases/download/v${VERSION}"
+RELEASE_URL="https://github.com/${REPO}/releases/download/v${SAMM_VER}"
 PW_PLACEHOLDER="change-me-strong-random-string"
 TOKEN_PLACEHOLDER="change-me-random-token"
 
@@ -80,7 +80,7 @@ fi
 [ "$OLD_TOKEN" = "$TOKEN_PLACEHOLDER" ] && OLD_TOKEN=""
 
 # ---------- Compose ----------
-say "downloading docker-compose for SAMM v${VERSION}"
+say "downloading docker-compose for SAMM v${SAMM_VER}"
 curl -fsSL "${RELEASE_URL}/docker-compose.yml" -o docker-compose.yml.new
 mv docker-compose.yml.new docker-compose.yml
 
@@ -165,7 +165,7 @@ API_PORT="${API_PORT:-8000}"
 
 echo
 printf '%s==============================================================%s\n' "$c_bold" "$c_reset"
-say "SAMM v${VERSION} is starting up — give it ~30s before opening the portal"
+say "SAMM v${SAMM_VER} is starting up — give it ~30s before opening the portal"
 echo
 printf '  Admin portal:    %shttp://%s:%s/admin%s\n'    "$c_bold" "$LAN_IP" "$API_PORT" "$c_reset"
 printf '  Customer portal: %shttp://%s:%s/%s\n'         "$c_bold" "$LAN_IP" "$API_PORT" "$c_reset"
