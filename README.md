@@ -63,8 +63,8 @@ Use it for evaluation, then deploy production on a Linux VM or small physical bo
 mkdir C:\samm-docker
 cd C:\samm-docker
 curl.exe -fLO https://github.com/mhdhaidarah/samm-docker/releases/latest/download/docker-compose.yml
-:: optional: notepad docker-compose.yml and find & replace
-::           change-me-strong-random-string with your own password
+# optional: notepad docker-compose.yml and find & replace
+#           change-me-strong-random-string with your own password
 docker compose pull
 docker compose up -d
 ```
