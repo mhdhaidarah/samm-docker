@@ -14,6 +14,17 @@ and an HA replication runbook.
 > optional WhatsApp QR bridge. One-line install below, MikroTik RouterOS
 > container instructions in the [docs](https://samm.securytik.com/docs).
 
+## Which file do I use? (start here)
+
+**One question: are you pasting YAML into your MikroTik router's *Container* menu?**
+
+| Where you run SAMM | Use | Why |
+|---|---|---|
+| **On a computer** — any Linux server / VM / desktop, x86 **or** ARM, including MikroTik **CHR** | the **installer** (`curl … install.sh \| bash`) or **`docker-compose.yml`** | Docker auto-detects your CPU — nothing to choose |
+| **Inside a MikroTik router** (RouterOS → Container) | **`docker-compose.mikrotik.yml`** | RouterOS can't pick a CPU architecture; this file is pinned to arm64 (every container-capable MikroTik board is arm64) so it won't fail with `Exec format error` |
+
+That's the whole decision — you never pick "amd64 vs arm64" yourself.
+
 ## Quick install (Ubuntu / Debian)
 
 ```bash
@@ -68,14 +79,27 @@ Tear down: `docker compose down -v` (the `-v` wipes the postgres + Fernet key vo
 
 ## MikroTik (RouterOS 7 container feature)
 
-Supported on amd64 (CCR2004-1G-2XS-PCIe, x86 RouterOS, CHR) and arm64
-(RB5009, hAP ax², CCR2004/2116/2216) — the SAMM image is multi-arch since
-v2.2.6 so RouterOS pulls the right variant transparently.
+**Running SAMM directly on a MikroTik router? Use the dedicated
+[`docker-compose.mikrotik.yml`](https://github.com/mhdhaidarah/samm-docker/releases/latest/download/docker-compose.mikrotik.yml) — NOT the normal `docker-compose.yml`.**
 
-In WebFig/WinBox: **Container → Apps → New → YAML**, paste the same
-`docker-compose.yaml` from the latest GitHub release, point it at an
-ext4-formatted USB/microSD, submit. RouterOS pulls each image and wires
-the services up.
+Why: unlike Docker, **RouterOS Container cannot choose a CPU architecture** from
+a multi-arch image — it always pulls amd64. On a MikroTik router (which is
+arm64) that makes every container die with
+`exited with status 255: execvp … Exec format error`. The `docker-compose.mikrotik.yml`
+file pins every image to its **arm64** build, which is what every
+container-capable MikroTik board is (RB5009, hAP ax², CCR2004/2116/2216, L009 …),
+so RouterOS pulls the right one.
+
+Steps — in WebFig/WinBox:
+
+1. **Container → Apps → New → YAML**, paste
+   **`docker-compose.mikrotik.yml`** (from the latest release), point it at an
+   ext4-formatted USB/microSD, submit.
+2. RouterOS pulls each arm64 image and wires the services up.
+
+> **x86 RouterOS or CHR?** Those are just PCs/VMs — **don't** use the mikrotik
+> file. Install Docker and run the normal one-line installer above; Docker
+> auto-detects your CPU. (Or use the standard `docker-compose.yml`.)
 
 Full walkthrough (prep, disk formatting, RADIUS wiring) lives at
 <https://samm.securytik.com/docs#doc-install> under *Option D*.
@@ -211,16 +235,21 @@ Use the bare-OS install if you need built-in VPN / tunnel management.
 
 ## Multi-arch + MikroTik containers
 
-The published images are **multi-arch** — `linux/amd64` and
-`linux/arm64` ship under the same tag. `docker pull` and Compose pick the
-right variant transparently.
+The published images are **multi-arch** — `linux/amd64` and `linux/arm64` ship
+under the same tag. On a normal Docker host (**including Apple-silicon Macs, x86,
+and arm servers**) `docker pull` and Compose pick the right variant
+automatically — one `docker-compose.yml`, nothing to choose.
 
-This unlocks two new deployment targets:
+**MikroTik RouterOS Container is the exception:** it does **not** negotiate
+architecture and always pulls amd64, so it needs the arm64-pinned
+**`docker-compose.mikrotik.yml`** (see the MikroTik section above). Use that file
+for on-the-router installs; use the normal `docker-compose.yml` everywhere else.
 
-- **Apple-silicon Docker Desktop** (M1/M2/M3 Macs) — runs native, no Rosetta.
+- **Apple-silicon Docker Desktop** (M1/M2/M3 Macs) — runs native via the normal
+  compose, no Rosetta.
 - **MikroTik containers** (RouterOS 7.4+) on arm64 hardware — RB5009, hAP ax²,
-  CCR2004/2116/2216, and similar. The repo-root compose file is plain YAML
-  1.2 (no merge keys) so RouterOS's container parser reads it cleanly.
+  CCR2004/2116/2216, and similar — via `docker-compose.mikrotik.yml`. Both compose
+  files are plain YAML 1.2 (no merge keys) so RouterOS's parser reads them cleanly.
 
 armv7 devices and the smaller mipsbe/smips MikroTik boards are not supported —
 the Python/FastAPI/Postgres/freeradius stack needs more headroom than those
