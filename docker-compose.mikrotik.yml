@@ -1,16 +1,37 @@
-# SAMM on a MikroTik router (RouterOS Container) — arm64, self-contained (v3.9.1).
-# Edit change-me-strong-random-string (Postgres password) + change-me-random-token, then
-# paste in Container -> Apps -> New -> YAML. NOT on a router? use the normal installer.
+# SAMM on a MikroTik router — docker-compose.mikrotik.yml (v3.9.1, arm64)
+# version: 3.9.1
+#
+# PASTE-AND-GO on RouterOS: Container -> Apps -> New -> YAML — runs as-is.
+# To set your own database password, find & replace EVERY occurrence of
+# change-me-strong-random-string with the same strong value (the one-line
+# installer does this for you automatically with a random password).
+#
+# Customer install (recommended — generates a strong password for you):
+#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v3.9.1/install.sh | sudo bash
+#
+# Running SAMM directly ON a MikroTik router? Use docker-compose.mikrotik.yml
+# instead (same file, arm64-pinned images — RouterOS can't pick a CPU arch).
+#
+# Network:
+#   - MikroTik NAS must point to the docker host's LAN IP for RADIUS.
+#   - freeradius exposes UDP 1812/1813 on the host via compose port mapping.
+#   - SAMM admin + customer portal at http://<host>:8000/
+#
+# Note: plain values only (no env-var interpolation, no YAML merge keys) — this
+# keeps the file working on strict YAML 1.2 parsers and on MikroTik's RouterOS
+# container feature, which passes env values literally.
 
 name: samm
 
 services:
   postgres:
-    image: postgres@sha256:7ae1143a9f249af815f056751a122a86d7e44ddce0926f2b227e3d5c434444f4
+    image: arm64v8/postgres:16-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: samm
       POSTGRES_USER: samm
+      # Paste-and-run default. CHANGE for a real deployment: replace EVERY
+      # occurrence of this string in the file (the installer does it for you).
       POSTGRES_PASSWORD: change-me-strong-random-string
       TZ: UTC
     volumes:
@@ -22,10 +43,14 @@ services:
       retries: 12
 
   samm-api:
-    image: mhdhaidarah/samm@sha256:0ac6a6a95a739cd9b389842f145d36d0e770b7b37162afc9cd8242468aa8977f
+    image: mhdhaidarah/samm:3.9.1-arm64
     restart: unless-stopped
     command: ["api"]
     environment:
+      # SAMM_ROLE is the parser-agnostic role dispatcher — Docker reads
+      # `command:` above, MikroTik's container feature reads this env var
+      # (it drops the `command:` field on YAML import). entrypoint.sh
+      # prefers SAMM_ROLE; both agree per service so behavior is identical.
       SAMM_ROLE: api
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -36,6 +61,10 @@ services:
       SAMM_API_HOST: 0.0.0.0
       SAMM_API_PORT: 8000
       SAMM_API_WORKERS: 2
+      # Optional WhatsApp QR bridge sidecar (see the wa-bridge service). On
+      # Docker its URL + token come from here and override any saved config;
+      # empty token when the bridge profile isn't enabled (harmless — the panel
+      # only uses it when the WhatsApp provider is "qr").
       WA_BRIDGE_URL: http://wa-bridge:8787
       WA_BRIDGE_TOKEN: change-me-random-token
     depends_on:
@@ -50,7 +79,7 @@ services:
       - sammlocales:/opt/samm/app/locales
 
   samm-radius:
-    image: mhdhaidarah/samm@sha256:0ac6a6a95a739cd9b389842f145d36d0e770b7b37162afc9cd8242468aa8977f
+    image: mhdhaidarah/samm:3.9.1-arm64
     restart: unless-stopped
     command: ["radius"]
     environment:
@@ -72,7 +101,7 @@ services:
       - sammlogs:/var/log/samm
 
   samm-worker:
-    image: mhdhaidarah/samm@sha256:0ac6a6a95a739cd9b389842f145d36d0e770b7b37162afc9cd8242468aa8977f
+    image: mhdhaidarah/samm:3.9.1-arm64
     restart: unless-stopped
     command: ["worker"]
     environment:
@@ -98,7 +127,7 @@ services:
       - sammlogs:/var/log/samm
 
   samm-notification:
-    image: mhdhaidarah/samm@sha256:0ac6a6a95a739cd9b389842f145d36d0e770b7b37162afc9cd8242468aa8977f
+    image: mhdhaidarah/samm:3.9.1-arm64
     restart: unless-stopped
     command: ["notification"]
     environment:
@@ -109,6 +138,7 @@ services:
       POSTGRES_USER: samm
       POSTGRES_PASSWORD: change-me-strong-random-string
       TZ: UTC
+      # The notification worker sends WhatsApp — same bridge sidecar as samm-api.
       WA_BRIDGE_URL: http://wa-bridge:8787
       WA_BRIDGE_TOKEN: change-me-random-token
     depends_on:
@@ -122,7 +152,7 @@ services:
       - sammlogs:/var/log/samm
 
   samm-telegram:
-    image: mhdhaidarah/samm@sha256:0ac6a6a95a739cd9b389842f145d36d0e770b7b37162afc9cd8242468aa8977f
+    image: mhdhaidarah/samm:3.9.1-arm64
     restart: unless-stopped
     command: ["telegram"]
     environment:
@@ -143,10 +173,20 @@ services:
       - sammvar:/opt/samm/var
       - sammlogs:/var/log/samm
 
+  # WhatsApp QR bridge — the unofficial Baileys sidecar, as a fully self-contained
+  # image (code + node_modules + git baked in by docker/wa-bridge.Dockerfile,
+  # multi-arch amd64+arm64, same version tag family as the app + freeradius).
+  # No bind-mount, no `command:` — so it runs identically on normal Docker AND on
+  # MikroTik's RouterOS container feature (which drops `command:` and can't mount
+  # host files). Part of the standard stack; it idles (no linked number, no
+  # traffic) until an operator picks the "qr" WhatsApp provider. The official
+  # Meta Cloud API path ignores it. Don't want it? `docker compose stop wa-bridge`.
   wa-bridge:
-    image: mhdhaidarah/samm@sha256:0486efe3aa781d4146dbdbd2bccadedd530d881b5f678fc1676407ca2e1ef2eb
+    image: mhdhaidarah/samm:wa-bridge-3.9.1-arm64
     restart: unless-stopped
     environment:
+      # Internal-only auth between SAMM and the bridge (not host-exposed);
+      # install.sh + host-updater.sh replace it with a random value.
       WA_BRIDGE_TOKEN: change-me-random-token
       TZ: UTC
     depends_on:
@@ -154,8 +194,13 @@ services:
     volumes:
       - wabridge_auth:/data/auth      # multi-device session — persists the QR link
 
+  # Custom SAMM FreeRADIUS image (built from docker/freeradius.Dockerfile).
+  # The stock freeradius image reads /etc/raddb (not /etc/freeradius/3.0) and
+  # ships without libpq, so the SAMM RADIUS config is baked in + enabled at
+  # build time; the DB password/host are filled into the SQL module from the
+  # env below by the image entrypoint at startup.
   freeradius:
-    image: mhdhaidarah/samm@sha256:ec3c20ab49e29273c154438b88a05d0429ad2c39a1a95d824d1d04729e98db12
+    image: mhdhaidarah/samm:freeradius-3.9.1-arm64
     restart: unless-stopped
     environment:
       POSTGRES_HOST: postgres

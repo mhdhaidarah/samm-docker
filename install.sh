@@ -8,18 +8,22 @@
 #   1. Verify root + supported OS (Ubuntu/Debian)
 #   2. Install Docker engine + compose plugin if missing
 #   3. Create /opt/samm-docker/
-#   4. Download docker-compose.yml + .env.example for SAMM v3.9.1
-#   5. Generate a secure POSTGRES_PASSWORD into .env (preserves an existing .env)
+#   4. Download docker-compose.yml for SAMM v3.9.1
+#   5. Replace the placeholder POSTGRES_PASSWORD / WA_BRIDGE_TOKEN with strong
+#      random values, directly in the compose file (no .env — the compose is
+#      the single source of truth). Re-runs PRESERVE your existing values.
 #   6. docker compose pull && docker compose up -d
 #   7. Print admin URL + first-login info
 #
-# Safe to re-run — upgrades the compose file + image; never overwrites .env.
+# Safe to re-run — upgrades the compose file + image; never loses your password.
 set -euo pipefail
 
 VERSION="3.9.1"
 INSTALL_DIR=/opt/samm-docker
 REPO=mhdhaidarah/samm-docker
 RELEASE_URL="https://github.com/${REPO}/releases/download/v${VERSION}"
+PW_PLACEHOLDER="change-me-strong-random-string"
+TOKEN_PLACEHOLDER="change-me-random-token"
 
 if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
     c_reset=$'\033[0m'; c_bold=$'\033[1m'
@@ -58,42 +62,57 @@ systemctl enable --now docker >/dev/null 2>&1 || true
 mkdir -p "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
-# ---------- Compose + env ----------
+# ---------- Preserve existing credentials (re-run / upgrade) ----------
+# The password lives IN the compose file. Before overwriting it, remember the
+# current values. Legacy installs (pre-3.9.2 layout) kept them in .env instead.
+OLD_PW=""; OLD_TOKEN=""
+if [ -f docker-compose.yml ]; then
+    OLD_PW=$(awk '/^ *POSTGRES_PASSWORD:/{print $2; exit}' docker-compose.yml || true)
+    OLD_TOKEN=$(awk '/^ *WA_BRIDGE_TOKEN:/{print $2; exit}' docker-compose.yml || true)
+fi
+if [ -f .env ]; then     # legacy .env migration
+    [ -n "$OLD_PW" ] && [ "$OLD_PW" != "$PW_PLACEHOLDER" ] \
+      || OLD_PW=$(awk -F= '/^POSTGRES_PASSWORD=/{print $2; exit}' .env || true)
+    [ -n "$OLD_TOKEN" ] && [ "$OLD_TOKEN" != "$TOKEN_PLACEHOLDER" ] \
+      || OLD_TOKEN=$(awk -F= '/^WA_BRIDGE_TOKEN=/{print $2; exit}' .env || true)
+fi
+[ "$OLD_PW" = "$PW_PLACEHOLDER" ] && OLD_PW=""
+[ "$OLD_TOKEN" = "$TOKEN_PLACEHOLDER" ] && OLD_TOKEN=""
+
+# ---------- Compose ----------
 say "downloading docker-compose for SAMM v${VERSION}"
 curl -fsSL "${RELEASE_URL}/docker-compose.yml" -o docker-compose.yml.new
 mv docker-compose.yml.new docker-compose.yml
 
-say "downloading host-updater.sh (use it in cron for auto-upgrades)"
+say "downloading host-updater.sh (used by cron for auto-upgrades)"
 curl -fsSL "${RELEASE_URL}/host-updater.sh" -o host-updater.sh
 chmod +x host-updater.sh
 
-# The WhatsApp QR bridge is a self-contained image (mhdhaidarah/samm:wa-bridge-*)
-# pulled by the compose stack — nothing to download here.
-
-if [ ! -f .env ]; then
-    say "generating .env (first install)"
-    curl -fsSL "${RELEASE_URL}/env.example" -o .env.tmp
-
+# ---------- Credentials into the compose ----------
+if [ -n "$OLD_PW" ]; then
+    say "re-applying your existing database password"
+    PG_PW="$OLD_PW"
+else
+    say "generating a strong database password"
     PG_PW=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))" 2>/dev/null \
           || openssl rand -base64 32 | tr -d '=+/' | head -c 43)
+fi
+if [ -n "$OLD_TOKEN" ]; then
+    WA_TOKEN="$OLD_TOKEN"
+else
     WA_TOKEN=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))" 2>/dev/null \
           || openssl rand -base64 32 | tr -d '=+/' | head -c 43)
-    LAN_IP=$(ip -4 -o route get 1 2>/dev/null \
-             | awk '{for(i=1;i<=NF;i++)if($i=="src"){print $(i+1); exit}}' || true)
-    LAN_IP="${LAN_IP:-127.0.0.1}"
-
-    sed -i \
-        -e "s|__GENERATED_POSTGRES_PASSWORD__|${PG_PW}|" \
-        -e "s|__GENERATED_WA_BRIDGE_TOKEN__|${WA_TOKEN}|" \
-        -e "s|__DETECTED_HOST__|${LAN_IP}|" \
-        .env.tmp
-    mv .env.tmp .env
-    chmod 600 .env
-else
-    warn ".env already exists — leaving it alone. Edit then 'docker compose up -d' to apply changes."
-    LAN_IP=$(awk -F= '/^SAMM_PUBLIC_HOST=/{print $2}' .env || true)
-    LAN_IP="${LAN_IP:-127.0.0.1}"
 fi
+sed -i \
+    -e "s|${PW_PLACEHOLDER}|${PG_PW}|g" \
+    -e "s|${TOKEN_PLACEHOLDER}|${WA_TOKEN}|g" \
+    docker-compose.yml
+chmod 600 docker-compose.yml
+grep -q "$PW_PLACEHOLDER" docker-compose.yml && die "password injection failed"
+
+LAN_IP=$(ip -4 -o route get 1 2>/dev/null \
+         | awk '{for(i=1;i<=NF;i++)if($i=="src"){print $(i+1); exit}}' || true)
+LAN_IP="${LAN_IP:-127.0.0.1}"
 
 # ---------- systemd unit (boot startup) ----------
 # Belt-and-suspenders alongside compose's `restart: unless-stopped`. The
@@ -121,8 +140,8 @@ systemctl daemon-reload
 
 # ---------- cron entry (daily auto-update) ----------
 # host-updater.sh checks the latest release tag, downloads the matching
-# digest-pinned compose, and pulls the new image. No-op when up to date.
-# Remove /etc/cron.d/samm-docker to disable auto-updates.
+# compose (carrying your password over), and pulls the new image. No-op when
+# up to date. Remove /etc/cron.d/samm-docker to disable auto-updates.
 say "installing /etc/cron.d/samm-docker (daily auto-update at 04:00)"
 cat > /etc/cron.d/samm-docker <<EOF
 # SAMM Docker auto-update — runs daily at 04:00 local time.
@@ -141,7 +160,7 @@ say "starting SAMM services (enabled on boot via samm-docker.service)"
 systemctl enable --now samm-docker.service
 
 # ---------- Post-install info ----------
-API_PORT=$(awk -F= '/^SAMM_API_PORT=/{print $2}' .env)
+API_PORT=$(grep -oE '"[0-9]+:8000"' docker-compose.yml | head -1 | tr -d '"' | cut -d: -f1)
 API_PORT="${API_PORT:-8000}"
 
 echo
@@ -157,6 +176,7 @@ echo  "Point your MikroTik NAS at this host's LAN IP for RADIUS:"
 printf '  Auth: %s:1812/udp     Acct: %s:1813/udp\n' "$LAN_IP" "$LAN_IP"
 echo  "  Shared secret is set in the SAMM admin portal under System -> RADIUS."
 echo
+echo  "Database password: stored in ${INSTALL_DIR}/docker-compose.yml (kept across upgrades)"
 echo  "Follow logs:  cd $INSTALL_DIR && docker compose logs -f"
 echo  "Stop:         cd $INSTALL_DIR && docker compose down"
 echo

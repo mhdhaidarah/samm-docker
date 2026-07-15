@@ -8,10 +8,10 @@ webhooks, admin & customer portals, Email/Telegram/SMS/WhatsApp notifications,
 and an HA replication runbook.
 
 > **▶ Start here → [github.com/mhdhaidarah/samm-docker](https://github.com/mhdhaidarah/samm-docker)**
-> Don't pull these images by hand — use the **compose bundle** from the
-> **samm-docker** releases. It pins the exact multi-arch digests (app,
-> freeradius, wa-bridge) and wires the whole stack together, including the
-> optional WhatsApp QR bridge. One-line install below, MikroTik RouterOS
+> Don't wire these images up by hand — use the **compose bundle** from the
+> **samm-docker** releases. It pins the release version tags (app, freeradius,
+> wa-bridge) and wires the whole stack together, including the optional
+> WhatsApp QR bridge. One-line install below, MikroTik RouterOS
 > container instructions in the [docs](https://samm.securytik.com/docs).
 
 ## Which file do I use? (start here)
@@ -33,7 +33,9 @@ curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/latest/download/i
 ```
 
 The installer detects Docker, installs it if missing, drops a
-`docker-compose.yml` + `.env` into `/opt/samm-docker/`, and brings the stack up.
+`docker-compose.yml` into `/opt/samm-docker/` with a strong random database
+password already filled in, and brings the stack up. No `.env` — the compose
+file is the single source of truth (re-runs and auto-updates keep your password).
 
 After ~30 seconds:
 
@@ -61,9 +63,8 @@ Use it for evaluation, then deploy production on a Linux VM or small physical bo
 mkdir C:\samm-docker
 cd C:\samm-docker
 curl.exe -fLO https://github.com/mhdhaidarah/samm-docker/releases/latest/download/docker-compose.yml
-curl.exe -fLO https://github.com/mhdhaidarah/samm-docker/releases/latest/download/env.example
-copy env.example .env
-notepad .env   # set POSTGRES_PASSWORD and SAMM_PUBLIC_HOST (your Windows LAN IP)
+:: optional: notepad docker-compose.yml and find & replace
+::           change-me-strong-random-string with your own password
 docker compose pull
 docker compose up -d
 ```
@@ -126,9 +127,10 @@ Full walkthrough (prep, disk formatting, RADIUS wiring) lives at
 | `wa-bridge` | WhatsApp QR bridge (idles until the QR provider is used) — self-contained multi-arch image |
 
 The app + freeradius + wa-bridge images are all `mhdhaidarah/samm` (tags
-`<ver>`, `freeradius-<ver>`, `wa-bridge-<ver>`), each pinned to a sha256 digest
-in the compose file and built multi-arch (amd64 + arm64). App source stays
-closed: it's built from Cython-compiled binaries — no `.py` source.
+`<ver>`, `freeradius-<ver>`, `wa-bridge-<ver>`, plus `-arm64`/`-amd64`
+single-arch variants for RouterOS), pinned by version tag in the compose file
+and built multi-arch (amd64 + arm64). App source stays closed: it's built from
+Cython-compiled binaries — no `.py` source.
 
 ## WhatsApp QR bridge (optional)
 
@@ -145,7 +147,7 @@ WhatsApp has two providers under **Notifications → Channels → WhatsApp**:
   multi-arch) with code + deps baked in — so it starts instantly and runs on
   normal Docker **and on MikroTik's RouterOS container feature** alike (no
   bind-mount, no `command:`). The linked session persists in the `wabridge_auth`
-  volume; `WA_BRIDGE_TOKEN` is auto-generated in `.env`. Don't want it running?
+  volume; `WA_BRIDGE_TOKEN` is auto-generated into the compose file. Don't want it running?
   `docker compose stop wa-bridge`.
 
 ## Boot startup
@@ -177,9 +179,9 @@ Disable: `sudo systemctl disable samm-docker.service`.
 - `/etc/cron.d/samm-docker` — runs `host-updater.sh` **daily at 04:00**
 - `/var/log/samm-update.log` — captures stdout + stderr each run
 
-Each run: query the latest release tag, download the matching digest-pinned
-`docker-compose.yml`, `docker compose pull && docker compose up -d`. No-op when
-nothing's new.
+Each run: query the latest release tag, download the matching
+`docker-compose.yml` (carrying your password over), then
+`docker compose pull && docker compose up -d`. No-op when nothing's new.
 
 Disable auto-update: `sudo rm /etc/cron.d/samm-docker`. Change the schedule
 by editing that file.
@@ -191,8 +193,8 @@ sudo curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/latest/downl
     | sudo bash
 ```
 
-Re-running `install.sh` preserves `.env`; it only refreshes `docker-compose.yml`
-and pulls the new image.
+Re-running `install.sh` preserves your password and WhatsApp-bridge token; it
+only refreshes `docker-compose.yml` and pulls the new image.
 
 ## Backup
 

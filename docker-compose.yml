@@ -1,24 +1,25 @@
 # SAMM Docker Compose — v3.9.1
 # version: 3.9.1
-# image-digest: sha256:e3624fac8ce5d84bce351613f1c0fca0e9f17be493f0f8bfdc769c52c8669eba
 #
-# CI substitutes 3.9.1 and sha256:e3624fac8ce5d84bce351613f1c0fca0e9f17be493f0f8bfdc769c52c8669eba at release time. Don't edit the
-# resulting docker-compose.yml directly except via the operator install.sh —
-# the host-updater.sh script downloads a fresh copy on each upgrade.
+# PASTE-AND-GO: this file runs as-is — `docker compose up -d`, no .env needed.
+# To set your own database password, find & replace EVERY occurrence of
+# change-me-strong-random-string with the same strong value (the one-line
+# installer does this for you automatically with a random password).
 #
-# Customer install:
+# Customer install (recommended — generates a strong password for you):
 #   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v3.9.1/install.sh | sudo bash
+#
+# Running SAMM directly ON a MikroTik router? Use docker-compose.mikrotik.yml
+# instead (same file, arm64-pinned images — RouterOS can't pick a CPU arch).
 #
 # Network:
 #   - MikroTik NAS must point to the docker host's LAN IP for RADIUS.
 #   - freeradius exposes UDP 1812/1813 on the host via compose port mapping.
-#   - SAMM admin + customer portal at http://<host>:${SAMM_API_PORT:-8000}/
+#   - SAMM admin + customer portal at http://<host>:8000/
 #
-# Note: every SAMM service is written out in full (no YAML merge keys).
-# Docker Compose v2 handles `<<: *anchor` fine, but stricter YAML 1.2 parsers
-# (MikroTik's container feature, Portainer-on-RouterOS, kompose, etc.) reject
-# it as "empty image name" because merge keys were dropped from YAML 1.2.
-# Inlining keeps this compose file portable across all of them.
+# Note: plain values only (no env-var interpolation, no YAML merge keys) — this
+# keeps the file working on strict YAML 1.2 parsers and on MikroTik's RouterOS
+# container feature, which passes env values literally.
 
 name: samm
 
@@ -29,11 +30,10 @@ services:
     environment:
       POSTGRES_DB: samm
       POSTGRES_USER: samm
-      # Paste-and-run default so `docker compose up` works with no .env. Override
-      # it any time via POSTGRES_PASSWORD in .env (the installer writes a strong
-      # random one). CHANGE THIS for a real deployment.
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-strong-random-string}
-      TZ: ${TZ:-UTC}
+      # Paste-and-run default. CHANGE for a real deployment: replace EVERY
+      # occurrence of this string in the file (the installer does it for you).
+      POSTGRES_PASSWORD: change-me-strong-random-string
+      TZ: UTC
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -43,7 +43,7 @@ services:
       retries: 12
 
   samm-api:
-    image: mhdhaidarah/samm@sha256:e3624fac8ce5d84bce351613f1c0fca0e9f17be493f0f8bfdc769c52c8669eba
+    image: mhdhaidarah/samm:3.9.1
     restart: unless-stopped
     command: ["api"]
     environment:
@@ -56,8 +56,8 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: samm
       POSTGRES_USER: samm
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-strong-random-string}
-      TZ: ${TZ:-UTC}
+      POSTGRES_PASSWORD: change-me-strong-random-string
+      TZ: UTC
       SAMM_API_HOST: 0.0.0.0
       SAMM_API_PORT: 8000
       SAMM_API_WORKERS: 2
@@ -66,12 +66,12 @@ services:
       # empty token when the bridge profile isn't enabled (harmless — the panel
       # only uses it when the WhatsApp provider is "qr").
       WA_BRIDGE_URL: http://wa-bridge:8787
-      WA_BRIDGE_TOKEN: ${WA_BRIDGE_TOKEN:-}
+      WA_BRIDGE_TOKEN: change-me-random-token
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "${SAMM_API_PORT:-8000}:8000"
+      - "8000:8000"
     volumes:
       - etcsamm:/etc/samm
       - sammvar:/opt/samm/var
@@ -79,7 +79,7 @@ services:
       - sammlocales:/opt/samm/app/locales
 
   samm-radius:
-    image: mhdhaidarah/samm@sha256:e3624fac8ce5d84bce351613f1c0fca0e9f17be493f0f8bfdc769c52c8669eba
+    image: mhdhaidarah/samm:3.9.1
     restart: unless-stopped
     command: ["radius"]
     environment:
@@ -88,8 +88,8 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: samm
       POSTGRES_USER: samm
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-strong-random-string}
-      TZ: ${TZ:-UTC}
+      POSTGRES_PASSWORD: change-me-strong-random-string
+      TZ: UTC
     depends_on:
       postgres:
         condition: service_healthy
@@ -101,7 +101,7 @@ services:
       - sammlogs:/var/log/samm
 
   samm-worker:
-    image: mhdhaidarah/samm@sha256:e3624fac8ce5d84bce351613f1c0fca0e9f17be493f0f8bfdc769c52c8669eba
+    image: mhdhaidarah/samm:3.9.1
     restart: unless-stopped
     command: ["worker"]
     environment:
@@ -110,8 +110,8 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: samm
       POSTGRES_USER: samm
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-strong-random-string}
-      TZ: ${TZ:-UTC}
+      POSTGRES_PASSWORD: change-me-strong-random-string
+      TZ: UTC
     depends_on:
       postgres:
         condition: service_healthy
@@ -127,7 +127,7 @@ services:
       - sammlogs:/var/log/samm
 
   samm-notification:
-    image: mhdhaidarah/samm@sha256:e3624fac8ce5d84bce351613f1c0fca0e9f17be493f0f8bfdc769c52c8669eba
+    image: mhdhaidarah/samm:3.9.1
     restart: unless-stopped
     command: ["notification"]
     environment:
@@ -136,11 +136,11 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: samm
       POSTGRES_USER: samm
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-strong-random-string}
-      TZ: ${TZ:-UTC}
+      POSTGRES_PASSWORD: change-me-strong-random-string
+      TZ: UTC
       # The notification worker sends WhatsApp — same bridge sidecar as samm-api.
       WA_BRIDGE_URL: http://wa-bridge:8787
-      WA_BRIDGE_TOKEN: ${WA_BRIDGE_TOKEN:-}
+      WA_BRIDGE_TOKEN: change-me-random-token
     depends_on:
       postgres:
         condition: service_healthy
@@ -152,7 +152,7 @@ services:
       - sammlogs:/var/log/samm
 
   samm-telegram:
-    image: mhdhaidarah/samm@sha256:e3624fac8ce5d84bce351613f1c0fca0e9f17be493f0f8bfdc769c52c8669eba
+    image: mhdhaidarah/samm:3.9.1
     restart: unless-stopped
     command: ["telegram"]
     environment:
@@ -161,8 +161,8 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: samm
       POSTGRES_USER: samm
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-strong-random-string}
-      TZ: ${TZ:-UTC}
+      POSTGRES_PASSWORD: change-me-strong-random-string
+      TZ: UTC
     depends_on:
       postgres:
         condition: service_healthy
@@ -175,20 +175,20 @@ services:
 
   # WhatsApp QR bridge — the unofficial Baileys sidecar, as a fully self-contained
   # image (code + node_modules + git baked in by docker/wa-bridge.Dockerfile,
-  # multi-arch amd64+arm64, digest-pinned like the app + freeradius images).
+  # multi-arch amd64+arm64, same version tag family as the app + freeradius).
   # No bind-mount, no `command:` — so it runs identically on normal Docker AND on
   # MikroTik's RouterOS container feature (which drops `command:` and can't mount
   # host files). Part of the standard stack; it idles (no linked number, no
   # traffic) until an operator picks the "qr" WhatsApp provider. The official
   # Meta Cloud API path ignores it. Don't want it? `docker compose stop wa-bridge`.
   wa-bridge:
-    image: mhdhaidarah/samm@sha256:0189ca810de3d658b4cca7f489b8967903d12cd31d05fbad46a76db47c808c35
+    image: mhdhaidarah/samm:wa-bridge-3.9.1
     restart: unless-stopped
     environment:
-      # Empty fallback so a missing token never blocks the stack (the bridge is
-      # internal-only, not host-exposed); install.sh + host-updater.sh set it.
-      WA_BRIDGE_TOKEN: ${WA_BRIDGE_TOKEN:-}
-      TZ: ${TZ:-UTC}
+      # Internal-only auth between SAMM and the bridge (not host-exposed);
+      # install.sh + host-updater.sh replace it with a random value.
+      WA_BRIDGE_TOKEN: change-me-random-token
+      TZ: UTC
     depends_on:
       - samm-api
     volumes:
@@ -198,15 +198,14 @@ services:
   # The stock freeradius image reads /etc/raddb (not /etc/freeradius/3.0) and
   # ships without libpq, so the SAMM RADIUS config is baked in + enabled at
   # build time; the DB password/host are filled into the SQL module from the
-  # env below by the image entrypoint at startup. sha256:5b1215d270813b218368c8bf3e268a4c4216019937c631fd187dd2b677dc0f2b is the multi-arch
-  # image digest CI captures at release time.
+  # env below by the image entrypoint at startup.
   freeradius:
-    image: mhdhaidarah/samm@sha256:5b1215d270813b218368c8bf3e268a4c4216019937c631fd187dd2b677dc0f2b
+    image: mhdhaidarah/samm:freeradius-3.9.1
     restart: unless-stopped
     environment:
       POSTGRES_HOST: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-strong-random-string}
-      TZ: ${TZ:-UTC}
+      POSTGRES_PASSWORD: change-me-strong-random-string
+      TZ: UTC
     depends_on:
       postgres:
         condition: service_healthy
