@@ -29,7 +29,10 @@ services:
     environment:
       POSTGRES_DB: samm
       POSTGRES_USER: samm
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      # Paste-and-run default so `docker compose up` works with no .env. Override
+      # it any time via POSTGRES_PASSWORD in .env (the installer writes a strong
+      # random one). CHANGE THIS for a real deployment.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-strong-random-string}
       TZ: ${TZ:-UTC}
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -53,7 +56,7 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: samm
       POSTGRES_USER: samm
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-strong-random-string}
       TZ: ${TZ:-UTC}
       SAMM_API_HOST: 0.0.0.0
       SAMM_API_PORT: 8000
@@ -85,7 +88,7 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: samm
       POSTGRES_USER: samm
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-strong-random-string}
       TZ: ${TZ:-UTC}
     depends_on:
       postgres:
@@ -107,7 +110,7 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: samm
       POSTGRES_USER: samm
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-strong-random-string}
       TZ: ${TZ:-UTC}
     depends_on:
       postgres:
@@ -133,7 +136,7 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: samm
       POSTGRES_USER: samm
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-strong-random-string}
       TZ: ${TZ:-UTC}
       # The notification worker sends WhatsApp — same bridge sidecar as samm-api.
       WA_BRIDGE_URL: http://wa-bridge:8787
@@ -158,7 +161,7 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: samm
       POSTGRES_USER: samm
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-strong-random-string}
       TZ: ${TZ:-UTC}
     depends_on:
       postgres:
@@ -202,7 +205,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_HOST: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me-strong-random-string}
       TZ: ${TZ:-UTC}
     depends_on:
       postgres:
