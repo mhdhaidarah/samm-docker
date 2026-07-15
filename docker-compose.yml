@@ -6,14 +6,20 @@
 # change-me-strong-random-string with the same strong value (the one-line
 # installer does this for you automatically with a random password).
 #
+# ONE file for everything — a normal Docker host (any CPU), Windows Docker
+# Desktop, and MikroTik RouterOS 7.23+ containers (arm64 or x86). The images are
+# multi-arch and pulled by TAG, so each platform gets its own architecture
+# automatically — no separate file, no arch to choose.
+#
 # Customer install (recommended — generates a strong password for you):
 #   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v3.9.1/install.sh | sudo bash
 #
-# Running SAMM directly ON a MikroTik router? Use docker-compose.mikrotik.yml
-# instead (same file, arm64-pinned images — RouterOS can't pick a CPU arch).
+# On a MikroTik router: Container -> Apps -> New -> YAML, paste this, storage on
+# a formatted disk. (If the app hangs at "waiting for reverse proxy" on RouterOS
+# 7.23+, untick "Use HTTPS" — it controls the app's UI proxy, not image pulls.)
 #
 # Network:
-#   - MikroTik NAS must point to the docker host's LAN IP for RADIUS.
+#   - MikroTik NAS points to the docker host's LAN IP for RADIUS.
 #   - freeradius exposes UDP 1812/1813 on the host via compose port mapping.
 #   - SAMM admin + customer portal at http://<host>:8000/
 #
