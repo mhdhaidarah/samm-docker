@@ -49,7 +49,7 @@ services:
       retries: 12
 
   samm-api:
-    image: mhdhaidarah/samm:3.9.1
+    image: mhdhaidarah/samm:latest
     restart: unless-stopped
     command: ["api"]
     environment:
@@ -85,7 +85,7 @@ services:
       - sammlocales:/opt/samm/app/locales
 
   samm-radius:
-    image: mhdhaidarah/samm:3.9.1
+    image: mhdhaidarah/samm:latest
     restart: unless-stopped
     command: ["radius"]
     environment:
@@ -107,7 +107,7 @@ services:
       - sammlogs:/var/log/samm
 
   samm-worker:
-    image: mhdhaidarah/samm:3.9.1
+    image: mhdhaidarah/samm:latest
     restart: unless-stopped
     command: ["worker"]
     environment:
@@ -133,7 +133,7 @@ services:
       - sammlogs:/var/log/samm
 
   samm-notification:
-    image: mhdhaidarah/samm:3.9.1
+    image: mhdhaidarah/samm:latest
     restart: unless-stopped
     command: ["notification"]
     environment:
@@ -158,7 +158,7 @@ services:
       - sammlogs:/var/log/samm
 
   samm-telegram:
-    image: mhdhaidarah/samm:3.9.1
+    image: mhdhaidarah/samm:latest
     restart: unless-stopped
     command: ["telegram"]
     environment:
@@ -188,7 +188,7 @@ services:
   # traffic) until an operator picks the "qr" WhatsApp provider. The official
   # Meta Cloud API path ignores it. Don't want it? `docker compose stop wa-bridge`.
   wa-bridge:
-    image: mhdhaidarah/samm:wa-bridge-3.9.1
+    image: mhdhaidarah/samm:wa-bridge-latest
     restart: unless-stopped
     environment:
       # Internal-only auth between SAMM and the bridge (not host-exposed);
@@ -206,7 +206,7 @@ services:
   # build time; the DB password/host are filled into the SQL module from the
   # env below by the image entrypoint at startup.
   freeradius:
-    image: mhdhaidarah/samm:freeradius-3.9.1
+    image: mhdhaidarah/samm:freeradius-latest
     restart: unless-stopped
     environment:
       POSTGRES_HOST: postgres
