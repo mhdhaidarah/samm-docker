@@ -1,5 +1,5 @@
-# SAMM Docker Compose — v3.9.1
-# version: 3.9.1
+# SAMM Docker Compose — v3.9.2
+# version: 3.9.2
 #
 # PASTE-AND-GO: this file runs as-is — `docker compose up -d`, no .env needed.
 # To set your own database password, find & replace EVERY occurrence of
@@ -12,7 +12,7 @@
 # automatically — no separate file, no arch to choose.
 #
 # Customer install (recommended — generates a strong password for you):
-#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v3.9.1/install.sh | sudo bash
+#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v3.9.2/install.sh | sudo bash
 #
 # On a MikroTik router: Container -> Apps -> New -> YAML, paste this, storage on
 # a formatted disk. (If the app hangs at "waiting for reverse proxy" on RouterOS
