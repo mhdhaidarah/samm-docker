@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # SAMM Docker installer — one-shot bootstrap.
-# Generated for SAMM v3.9.4.
+# Generated for SAMM v3.9.5.
 #
-#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v3.9.4/install.sh | sudo bash
+#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v3.9.5/install.sh | sudo bash
 #
 # What this does:
 #   1. Verify root + supported OS (Ubuntu/Debian)
 #   2. Install Docker engine + compose plugin if missing
 #   3. Create /opt/samm-docker/
-#   4. Download docker-compose.yml for SAMM v3.9.4
+#   4. Download docker-compose.yml for SAMM v3.9.5
 #   5. Replace the placeholder POSTGRES_PASSWORD / WA_BRIDGE_TOKEN with strong
 #      random values, directly in the compose file (no .env — the compose is
 #      the single source of truth). Re-runs PRESERVE your existing values.
@@ -18,7 +18,7 @@
 # Safe to re-run — upgrades the compose file + image; never loses your password.
 set -euo pipefail
 
-SAMM_VER="3.9.4"
+SAMM_VER="3.9.5"
 INSTALL_DIR=/opt/samm-docker
 REPO=mhdhaidarah/samm-docker
 RELEASE_URL="https://github.com/${REPO}/releases/download/v${SAMM_VER}"
