@@ -119,9 +119,12 @@ Full walkthrough (prep, disk formatting, RADIUS wiring) lives at
 | `wa-bridge` | WhatsApp QR bridge (idles until the QR provider is used) — self-contained multi-arch image |
 
 The app + freeradius + wa-bridge images are all `mhdhaidarah/samm` (tags
-`<ver>`, `freeradius-<ver>`, `wa-bridge-<ver>`, plus `-arm64`/`-amd64`
-single-arch variants for RouterOS), pinned by version tag in the compose file
-and built multi-arch (amd64 + arm64). App source stays closed: it's built from
+`<ver>` and `latest`, plus the `freeradius-` and `wa-bridge-` prefixes). Every
+customer-facing tag is a clean 2-entry multi-arch index — amd64 and arm64, no
+attestation sub-manifests — so one compose file serves x86 hosts and arm64
+alike, RouterOS included: the router picks its own architecture from the tag.
+The compose file references the rolling `:latest` tags and records the version
+it shipped with in its header comment. App source stays closed: it's built from
 Cython-compiled binaries — no `.py` source.
 
 ## WhatsApp QR bridge (optional)
