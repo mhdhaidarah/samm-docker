@@ -1,5 +1,5 @@
-# SAMM Docker Compose — v4.0.4
-# version: 4.0.4
+# SAMM Docker Compose — v4.1.0
+# version: 4.1.0
 #
 # PASTE-AND-GO: this file runs as-is — `docker compose up -d`, no .env needed.
 # To set your own database password, find & replace EVERY occurrence of
@@ -12,7 +12,7 @@
 # automatically — no separate file, no arch to choose.
 #
 # Customer install (recommended — generates a strong password for you):
-#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v4.0.4/install.sh | sudo bash
+#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v4.1.0/install.sh | sudo bash
 #
 # On a MikroTik router: Container -> Apps -> New -> YAML, paste this, storage on
 # a formatted disk. (If the app hangs at "waiting for reverse proxy" on RouterOS
@@ -76,6 +76,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # Healthy only once uvicorn is serving, which the entrypoint does AFTER it
+    # has applied every migration. That is what lets the other services wait on
+    # the schema instead of merely on this container having been started.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
     ports:
       - "8000:8000"
     volumes:
@@ -100,7 +109,10 @@ services:
       postgres:
         condition: service_healthy
       samm-api:
-        condition: service_started
+        # service_healthy, not service_started: samm-api applies the migrations,
+        # and "started" only means its container exists. On an upgrade the
+        # daemons would otherwise run against the previous schema.
+        condition: service_healthy
     volumes:
       - etcsamm:/etc/samm
       - sammvar:/opt/samm/var
@@ -122,7 +134,10 @@ services:
       postgres:
         condition: service_healthy
       samm-api:
-        condition: service_started
+        # service_healthy, not service_started: samm-api applies the migrations,
+        # and "started" only means its container exists. On an upgrade the
+        # daemons would otherwise run against the previous schema.
+        condition: service_healthy
     cap_add:
       - NET_RAW
     sysctls:
@@ -151,7 +166,10 @@ services:
       postgres:
         condition: service_healthy
       samm-api:
-        condition: service_started
+        # service_healthy, not service_started: samm-api applies the migrations,
+        # and "started" only means its container exists. On an upgrade the
+        # daemons would otherwise run against the previous schema.
+        condition: service_healthy
     volumes:
       - etcsamm:/etc/samm
       - sammvar:/opt/samm/var
@@ -173,7 +191,10 @@ services:
       postgres:
         condition: service_healthy
       samm-api:
-        condition: service_started
+        # service_healthy, not service_started: samm-api applies the migrations,
+        # and "started" only means its container exists. On an upgrade the
+        # daemons would otherwise run against the previous schema.
+        condition: service_healthy
     volumes:
       - etcsamm:/etc/samm
       - sammvar:/opt/samm/var
@@ -214,6 +235,15 @@ services:
       TZ: UTC
     depends_on:
       postgres:
+        condition: service_healthy
+      # It used to depend on postgres alone, so on `docker compose up -d` it
+      # booted with the new queries.conf while samm-api was still migrating.
+      # rlm_sql then errored on a function that did not exist yet, and
+      # sites-available/samm turns an rlm_sql error into Access-Reject — every
+      # subscriber offline until migrations finished. Its own entrypoint gates
+      # on the schema too (RouterOS ignores depends_on entirely); this is the
+      # Docker half of the same fix.
+      samm-api:
         condition: service_healthy
     ports:
       - "1812:1812/udp"
