@@ -1,5 +1,5 @@
-# SAMM Docker Compose — v4.1.12
-# version: 4.1.12
+# SAMM Docker Compose — v4.1.14
+# version: 4.1.14
 #
 # PASTE-AND-GO: this file runs as-is — `docker compose up -d`, no .env needed.
 # To set your own database password, find & replace EVERY occurrence of
@@ -12,11 +12,25 @@
 # automatically — no separate file, no arch to choose.
 #
 # Customer install (recommended — generates a strong password for you):
-#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v4.1.12/install.sh | sudo bash
+#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v4.1.14/install.sh | sudo bash
 #
 # On a MikroTik router: Container -> Apps -> New -> YAML, paste this, storage on
 # a formatted disk. (If the app hangs at "waiting for reverse proxy" on RouterOS
 # 7.23+, untick "Use HTTPS" — it controls the app's UI proxy, not image pulls.)
+#
+# WHICH VERSION AM I RUNNING? The tag stays :latest on purpose — one file that
+# never goes stale, and `docker compose pull && docker compose up -d` is always
+# the update. The image itself carries the real release, so a running install
+# can always tell you which one it is:
+#
+#   docker inspect --format \
+#     '{{index .Config.Labels "org.opencontainers.image.version"}}' \
+#     mhdhaidarah/samm:latest
+#
+# The admin panel footer reports the same number. Updating never touches your
+# data: `docker compose down` (no -v) removes the containers and leaves the
+# volumes, so the next `up` picks them straight back up. Only `down -v`, or
+# deleting the volumes by hand, wipes anything.
 #
 # Network:
 #   - MikroTik NAS points to the docker host's LAN IP for RADIUS.

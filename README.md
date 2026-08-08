@@ -191,6 +191,50 @@ sudo curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/latest/downl
 Re-running `install.sh` preserves your password and WhatsApp-bridge token; it
 only refreshes `docker-compose.yml` and pulls the new image.
 
+## Which version am I running?
+
+The compose file pulls `:latest` on purpose — one file that never goes stale,
+and `docker compose pull && docker compose up -d` is always the update. The tag
+therefore cannot tell you what you got; the image carries its own version:
+
+```bash
+docker inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' \
+  mhdhaidarah/samm:latest
+```
+
+The admin panel footer reports the same number.
+
+Images are multi-arch (amd64 + arm64) and pulled by tag, so an Ubuntu server,
+Docker Desktop and a MikroTik router each get the build for their own CPU
+automatically. There is no architecture to choose and no separate file.
+
+## Why the compose file looks like that
+
+The bundle is deliberately terse. The reasoning that used to live in its
+comments, kept here so it is not lost:
+
+- **`SAMM_ROLE` duplicates `command:`.** MikroTik's container feature drops the
+  `command:` field on YAML import, so every service also carries a role env var.
+  `entrypoint.sh` prefers `SAMM_ROLE`; the two always agree, so behaviour is
+  identical on Docker and RouterOS.
+- **Everything waits on `samm-api: service_healthy`, not `service_started`.**
+  `samm-api` applies the migrations and only reports healthy once uvicorn is
+  serving, which happens after the last one. `started` merely means the
+  container exists, so on an upgrade the daemons would run against the previous
+  schema.
+- **`freeradius` waits on `samm-api` too.** It used to depend on postgres alone
+  and would boot with the new `queries.conf` while migrations were still
+  running; `rlm_sql` then errored on a function that did not exist yet, and
+  `sites-available/samm` turns an `rlm_sql` error into Access-Reject — every
+  subscriber offline until migrations finished. RouterOS ignores `depends_on`
+  entirely, so the image entrypoint gates on the schema as well.
+- **Plain values only** — no env interpolation, no YAML merge keys. RouterOS
+  passes values literally and strict YAML 1.2 parsers choke on the rest.
+- **`wa-bridge` ships in the standard stack** but idles until an operator picks
+  the "qr" WhatsApp provider. `docker compose stop wa-bridge` if unwanted.
+- **The custom FreeRADIUS image** exists because the stock one reads
+  `/etc/raddb` (not `/etc/freeradius/3.0`) and ships without libpq.
+
 ## Backup
 
 Three volumes carry state worth keeping:
