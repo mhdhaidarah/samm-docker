@@ -1,5 +1,5 @@
-# SAMM Docker Compose — v5.0.3
-# version: 5.0.3
+# SAMM Docker Compose — v5.0.4
+# version: 5.0.4
 #
 # PASTE-AND-GO: this file runs as-is — `docker compose up -d`, no .env needed.
 # To set your own database password, find & replace EVERY occurrence of
@@ -12,7 +12,7 @@
 # automatically — no separate file, no arch to choose.
 #
 # Customer install (recommended — generates a strong password for you):
-#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v5.0.3/install.sh | sudo bash
+#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v5.0.4/install.sh | sudo bash
 #
 # On a MikroTik router: Container -> Apps -> New -> YAML, paste this, storage on
 # a formatted disk. (If the app hangs at "waiting for reverse proxy" on RouterOS
@@ -98,7 +98,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 30
-      start_period: 30s
+      # A FIRST boot applies every migration before /health answers -- 158 of
+      # them -- and on a slow host that outlasted 30s + 30x10s: compose marked
+      # samm-api unhealthy, gave up on everything that depends on it, and
+      # FreeRADIUS was left "Created", never started (seen on a slow Ubuntu
+      # 24.04 host: 4m37s of migrations, ready at 6m08s). Failures inside
+      # start_period do not count and the first passing probe marks it healthy
+      # at once, so a long one costs a fast host nothing.
+      start_period: 900s
     ports:
       - "8000:8000"
     volumes:

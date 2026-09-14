@@ -30,8 +30,13 @@ cd "$INSTALL_DIR"
 CURRENT=$(awk -F': ' '/^# version: /{print $2; exit}' "$COMPOSE_FILE" || true)
 CURRENT="${CURRENT:-unknown}"
 
+# awk must read to the END. `{print $4; exit}` closed the pipe while curl was
+# still streaming the rest of the JSON: curl died with 23 "Failed writing body",
+# pipefail made that the pipeline's status, and set -e ended the update. It is a
+# race on how the body arrives in chunks -- 1 run in 6 on a slow 22.04 lab VM,
+# never on a fast link -- so it hits exactly the installs least able to notice.
 LATEST_TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-             | awk -F'"' '/"tag_name":/{print $4; exit}')
+             | awk -F'"' '/"tag_name":/ && !t {t=$4} END {print t}')
 [ -n "${LATEST_TAG:-}" ] || { echo "could not resolve latest release"; exit 1; }
 LATEST="${LATEST_TAG#v}"
 
@@ -73,5 +78,17 @@ chmod 600 "$COMPOSE_FILE"
 
 docker compose pull
 docker compose up -d
+
+# Refresh this script too. Nothing else ever replaces it, so without this a fix
+# to the updater would only reach installs that re-run install.sh. Best effort,
+# and last: the stack is already updated. mv gives the new file a new inode, so
+# the copy bash is still reading from is untouched.
+NEW_SELF=$(mktemp)
+if curl -fsSL "https://github.com/${REPO}/releases/download/${LATEST_TAG}/host-updater.sh" -o "$NEW_SELF" \
+   && head -1 "$NEW_SELF" | grep -q '^#!/usr/bin/env bash' && bash -n "$NEW_SELF"; then
+    chmod 0755 "$NEW_SELF" && mv "$NEW_SELF" "$INSTALL_DIR/host-updater.sh"
+else
+    rm -f "$NEW_SELF"
+fi
 
 echo "[$(date -Iseconds)] updated to $LATEST"

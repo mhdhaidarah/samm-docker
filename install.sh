@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # SAMM Docker installer — one-shot bootstrap.
-# Generated for SAMM v5.0.3.
+# Generated for SAMM v5.0.4.
 #
-#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v5.0.3/install.sh | sudo bash
+#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v5.0.4/install.sh | sudo bash
 #
 # What this does:
 #   1. Verify root + supported OS (Ubuntu/Debian)
 #   2. Install Docker engine + compose plugin if missing
 #   3. Create /opt/samm-docker/
-#   4. Download docker-compose.yml for SAMM v5.0.3
+#   4. Download docker-compose.yml for SAMM v5.0.4
 #   5. Replace the placeholder POSTGRES_PASSWORD / WA_BRIDGE_TOKEN with strong
 #      random values, directly in the compose file (no .env — the compose is
 #      the single source of truth). Re-runs PRESERVE your existing values.
@@ -18,7 +18,7 @@
 # Safe to re-run — upgrades the compose file + image; never loses your password.
 set -euo pipefail
 
-SAMM_VER="5.0.3"
+SAMM_VER="5.0.4"
 INSTALL_DIR=/opt/samm-docker
 REPO=mhdhaidarah/samm-docker
 RELEASE_URL="https://github.com/${REPO}/releases/download/v${SAMM_VER}"
@@ -157,7 +157,33 @@ say "pulling SAMM image (this can take a few minutes on first install)"
 docker compose pull --quiet
 
 say "starting SAMM services (enabled on boot via samm-docker.service)"
-systemctl enable --now samm-docker.service
+systemctl enable samm-docker.service
+# Do not take the unit's word for it. `compose up -d` gives up on every service
+# that waits for samm-api if the first boot's migrations outlast the healthcheck,
+# and this script used to print its success banner over a stack whose FreeRADIUS
+# had never started -- every NAS rejected, and nothing on screen said so.
+systemctl start samm-docker.service \
+    || warn "first start did not finish — waiting for the first-boot migrations, then retrying"
+all_running() {
+    [ "$(docker compose config --services | sort)" = \
+      "$(docker compose ps --status running --services 2>/dev/null | sort)" ]
+}
+for _ in $(seq 1 120); do                       # up to 20 minutes
+    all_running && break
+    if [ "$(docker inspect -f '{{.State.Health.Status}}' \
+            "$(docker compose ps -q samm-api 2>/dev/null)" 2>/dev/null)" = healthy ]; then
+        docker compose up -d >/dev/null 2>&1 || true
+    fi
+    sleep 10
+done
+if ! all_running; then
+    docker compose ps >&2 || true
+    die "SAMM did not fully start. Not running: $(comm -23 \
+        <(docker compose config --services | sort) \
+        <(docker compose ps --status running --services 2>/dev/null | sort) | paste -sd' ').
+    Look at: cd $INSTALL_DIR && docker compose logs samm-api"
+fi
+systemctl is-active --quiet samm-docker.service || systemctl restart samm-docker.service || true
 
 # ---------- Post-install info ----------
 API_PORT=$(grep -oE '"[0-9]+:8000"' docker-compose.yml | head -1 | tr -d '"' | cut -d: -f1)
