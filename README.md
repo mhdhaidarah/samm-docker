@@ -4,7 +4,7 @@ The official Docker image for **SAMM** (SecuryTik Active MikroTik Manager) — a
 FreeRADIUS + PostgreSQL + FastAPI AAA stack for MikroTik ISPs: PPPoE / Hotspot /
 DHCP-IPoE access, IPv6 dual-stack, plans & limits, double-entry billing with
 online payments (Stripe / Binance / PayPal) + QuickBooks/Xero export, REST API +
-webhooks, admin & customer portals, Email/Telegram/SMS/WhatsApp notifications,
+webhooks, admin & user portals, Email/Telegram/SMS/WhatsApp notifications,
 and an HA replication runbook.
 
 > **▶ Start here → [github.com/mhdhaidarah/samm-docker](https://github.com/mhdhaidarah/samm-docker)**
@@ -37,7 +37,7 @@ file is the single source of truth (re-runs and auto-updates keep your password)
 After ~30 seconds:
 
 - **Admin portal**   `http://<host>:8000/admin`
-- **Customer portal** `http://<host>:8000/`
+- **User portal** `http://<host>:8000/`
 - **RADIUS auth**     UDP 1812 on the host's LAN IP
 - **RADIUS accounting** UDP 1813 on the host's LAN IP
 
@@ -110,7 +110,7 @@ Full walkthrough (prep, disk formatting, RADIUS wiring) lives at
 | Container | Role |
 | --- | --- |
 | `postgres` | Postgres 16 on the private compose bridge |
-| `samm-api` | FastAPI admin + customer portal (exposes :8000) |
+| `samm-api` | FastAPI admin + user portal (exposes :8000) |
 | `samm-radius` | Time-driven AAA + CoA sender |
 | `samm-worker` | MikroTik inventory + ICMP ping sweep (`NET_RAW`) |
 | `samm-notification` | Email/Telegram/SMS/WhatsApp notification outbox drain |
@@ -120,7 +120,7 @@ Full walkthrough (prep, disk formatting, RADIUS wiring) lives at
 
 The app + freeradius + wa-bridge images are all `mhdhaidarah/samm` (tags
 `<ver>` and `latest`, plus the `freeradius-` and `wa-bridge-` prefixes). Every
-customer-facing tag is a clean 2-entry multi-arch index — amd64 and arm64, no
+user-facing tag is a clean 2-entry multi-arch index — amd64 and arm64, no
 attestation sub-manifests — so one compose file serves x86 hosts and arm64
 alike, RouterOS included: the router picks its own architecture from the tag.
 The compose file references the rolling `:latest` tags and records the version
@@ -226,7 +226,7 @@ comments, kept here so it is not lost:
   and would boot with the new `queries.conf` while migrations were still
   running; `rlm_sql` then errored on a function that did not exist yet, and
   `sites-available/samm` turns an `rlm_sql` error into Access-Reject — every
-  subscriber offline until migrations finished. RouterOS ignores `depends_on`
+  user offline until migrations finished. RouterOS ignores `depends_on`
   entirely, so the image entrypoint gates on the schema as well.
 - **Plain values only** — no env interpolation, no YAML merge keys. RouterOS
   passes values literally and strict YAML 1.2 parsers choke on the rest.
