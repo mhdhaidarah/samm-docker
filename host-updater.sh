@@ -47,6 +47,22 @@ fi
 
 echo "[$(date -Iseconds)] updating $CURRENT -> $LATEST"
 
+# Run the NEW release's updater, not this one. The self-refresh at the bottom
+# only helped the update AFTER this one, so every fix to the apply sequence
+# below reached customers a release late. Fetch it first; if it differs, hand
+# over to it once (the env guard stops a loop). Any failure: carry on here.
+if [ -z "${SAMM_UPDATER_HANDOFF:-}" ]; then
+    NEW_SELF=$(mktemp)
+    if curl -fsSL "https://github.com/${REPO}/releases/download/${LATEST_TAG}/host-updater.sh" -o "$NEW_SELF" \
+       && head -1 "$NEW_SELF" | grep -q '^#!/usr/bin/env bash' && bash -n "$NEW_SELF" \
+       && ! cmp -s "$NEW_SELF" "$INSTALL_DIR/host-updater.sh"; then
+        chmod 0755 "$NEW_SELF" && mv "$NEW_SELF" "$INSTALL_DIR/host-updater.sh"
+        echo "[$(date -Iseconds)] handing over to the $LATEST updater"
+        SAMM_UPDATER_HANDOFF=1 exec "$INSTALL_DIR/host-updater.sh"
+    fi
+    rm -f "$NEW_SELF"
+fi
+
 # ---- carry credentials from the running compose (or a legacy .env) ----------
 PG_PW=$(awk '/^ *POSTGRES_PASSWORD:/{print $2; exit}' "$COMPOSE_FILE" || true)
 WA_TOKEN=$(awk '/^ *WA_BRIDGE_TOKEN:/{print $2; exit}' "$COMPOSE_FILE" || true)
@@ -77,6 +93,28 @@ mv "$TMP" "$COMPOSE_FILE"
 chmod 600 "$COMPOSE_FILE"
 
 docker compose pull
+
+# Apply in stages so RADIUS keeps answering. A plain `up -d` stopped every
+# container at once and FreeRADIUS then waited for samm-api to become healthy,
+# migrations included -- logins failed for that whole window. Instead, as the
+# bare-OS updater does:
+#   1. stop the background daemons (they must not run on a half-migrated schema);
+#   2. recreate samm-api alone -- it runs the migrations -- while the OLD
+#      FreeRADIUS container keeps authenticating;
+#   3. once samm-api is healthy, bring everything else up on the new images.
+# A step that fails falls through to the plain `up -d`, which is what ran before.
+staged_up() {
+    docker compose stop samm-worker samm-radius samm-notification samm-telegram || return 1
+    docker compose up -d --no-deps samm-api || return 1
+    local waited=0 h=""
+    while [ "$waited" -lt 900 ]; do
+        h=$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q samm-api)" 2>/dev/null || true)
+        [ "$h" = healthy ] && return 0
+        sleep 5; waited=$((waited + 5))
+    done
+    echo "samm-api not healthy after 15 min (last: ${h:-unknown})"; return 1
+}
+staged_up || echo "[$(date -Iseconds)] staged apply incomplete; starting everything"
 docker compose up -d
 
 # Refresh this script too. Nothing else ever replaces it, so without this a fix
