@@ -54,6 +54,8 @@ You can run SAMM on Windows via Docker Desktop + WSL2. **Not recommended for pro
 
 Use it for evaluation, then deploy production on a Linux VM or small physical box.
 
+**For production on Windows**, use the one-line Hyper-V installer instead — SAMM in its own Ubuntu VM with its own LAN IP, so RADIUS sees each router's real address. In PowerShell as Administrator: `irm https://dl.securytik.com/install-windows.ps1 | iex`
+
 **Evaluation steps from PowerShell** (no WSL terminal needed; Docker Desktop's WSL backend handles it):
 
 ```powershell
