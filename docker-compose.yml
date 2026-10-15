@@ -104,8 +104,9 @@ services:
       # FreeRADIUS was left "Created", never started (seen on a slow Ubuntu
       # 24.04 host: 4m37s of migrations, ready at 6m08s). Failures inside
       # start_period do not count and the first passing probe marks it healthy
-      # at once, so a long one costs a fast host nothing.
-      start_period: 900s
+      # at once, so a long one costs a fast host nothing. 30 min since a router's
+      # USB disk took 8.5 min just to create the database (CCR2116, 2026-10-15).
+      start_period: 1800s
     ports:
       - "8000:8000"
     volumes:
