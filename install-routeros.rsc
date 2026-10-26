@@ -2,11 +2,11 @@
 #
 # Paste this ONE line into the router's terminal (WinBox > New Terminal, or SSH):
 #
-#   /tool fetch url="https://github.com/mhdhaidarah/samm-docker/releases/latest/download/install-routeros.rsc" dst-path=samm-install.rsc; /import samm-install.rsc
+#   /tool fetch url="https://samm.securytik.com/install-routeros.rsc" dst-path=samm-install.rsc; /import samm-install.rsc
 #
 # Paste the same line again whenever it asks you to (after the reboot, after the power cycle, after the
 # disk is ready): every step checks what is already done and carries on from there. Nothing that is already
-# running is touched, and no disk is ever formatted without you typing the command yourself.
+# running is touched, and no disk is ever formatted unless you press y when it asks.
 #
 # What it does: checks RouterOS / CPU / memory, installs the container package, switches on container mode
 # (one hard power cycle), finds an ext4 disk of at least 30 GB, points the container download folders at it,
@@ -86,32 +86,64 @@ $say "Container package: OK"
 $say "Container mode: OK"
 
 # ---- 4. Disk ----------------------------------------------------------------------------------------------------
+# Every disk is looked at: a big-enough ext4 disk is used; a big-enough disk that is not ext4 is offered for
+# formatting (RouterOS asks y/N first); a disk that is too small is named with its size.
 :local mingb 30
 :if ([:typeof $SAMMMINGB] = "num") do={ :set mingb $SAMMMINGB }
 :local minbytes ($mingb * 1000000000)
+:local gb do={ :return (($1 + 500000000) / 1000000000) }
 :local mp ""
 :local best 0
-:foreach d in=[/disk find where fs="ext4"] do={
+:local small ""
+:local unformatted ""
+:foreach d in=[/disk find where type="hardware" or fs="ext4"] do={
     :local sz [/disk get $d size]
+    :local fs [/disk get $d fs]
     :local m [/disk get $d mount-point]
-    :if ([:typeof $sz] = "num" and $sz >= $minbytes and [:len $m] > 0 and $sz > $best) do={ :set best $sz; :set mp $m }
+    :local slot [/disk get $d slot]
+    :if ([:typeof $sz] = "num") do={
+        :if ($sz < $minbytes) do={
+            :set small ($small . " " . $slot . " (" . [$gb $sz] . " GB)")
+        } else={
+            :if ($fs = "ext4" and [:len $m] > 0) do={
+                :if ($sz > $best) do={ :set best $sz; :set mp $m }
+            } else={
+                :if ([:len $unformatted] = 0 and $fs != "ext4") do={ :set unformatted $slot }
+            }
+        }
+    }
+}
+:if ([:len $mp] = 0 and [:len $unformatted] > 0) do={
+    $say ("Disk " . $unformatted . " is big enough but is not formatted ext4. Formatting ERASES everything on it.")
+    $say "RouterOS will ask now: press y to format it for SAMM, or Enter to stop."
+    :do { /disk format $unformatted file-system=ext4 label=samm } on-error={}
+    :local tries 0
+    # wait only while the new ext4 file system is still being mounted (an answered "no" leaves no ext4: no wait)
+    :while ([:len $mp] = 0 and $tries < 15 and [:len [/disk find where slot=$unformatted and fs="ext4"]] > 0) do={
+        :foreach d in=[/disk find where slot=$unformatted and fs="ext4"] do={
+            :if ([:len [/disk get $d mount-point]] > 0) do={ :set mp [/disk get $d mount-point]; :set best [/disk get $d size] }
+        }
+        :if ([:len $mp] = 0) do={ :delay 2s; :set tries ($tries + 1) }
+    }
+    :if ([:len $mp] = 0) do={
+        :if ([:len [/disk find where slot=$unformatted and fs="ext4"]] > 0) do={
+            $say "The disk is formatted but not mounted yet. Paste the link again in a minute."
+            :error "SAMM: disk not mounted"
+        }
+        $say "Nothing was changed. When you are ready, paste the link again and press y, or format it yourself:"
+        $say ("    /disk format " . $unformatted . " file-system=ext4 label=samm")
+        :error "SAMM: disk needs formatting"
+    }
 }
 :if ([:len $mp] = 0) do={
-    :local cand ""
-    :foreach d in=[/disk find where type="hardware"] do={
-        :local sz [/disk get $d size]
-        :if ([:typeof $sz] = "num" and $sz >= $minbytes and [:len $cand] = 0) do={ :set cand [/disk get $d slot] }
+    :if ([:len $small] > 0) do={
+        $say ("Disk too small for SAMM:" . $small . ". SAMM needs at least " . $mingb . " GB (its database and images live there, never on the router's own storage). Plug in a bigger USB flash / SSD / NVMe, then paste the link again.")
+        :error "SAMM: disk too small"
     }
-    :if ([:len $cand] = 0) do={
-        $say ("No disk for SAMM. Plug in a USB flash / SSD / NVMe of at least " . $mingb . " GB (SAMM's database and images live there, never on the router's own storage), then paste the link again.")
-        :error "SAMM: no disk"
-    }
-    $say ("Disk " . $cand . " is big enough but is not formatted ext4. Formatting ERASES everything on it. If that is fine, run:")
-    $say ("    /disk format " . $cand . " file-system=ext4")
-    $say "then paste the link again."
-    :error "SAMM: disk needs formatting"
+    $say ("No disk for SAMM. Plug in a USB flash / SSD / NVMe of at least " . $mingb . " GB (SAMM's database and images live there, never on the router's own storage), then paste the link again.")
+    :error "SAMM: no disk"
 }
-$say ("Disk: " . $mp . " (" . ($best / 1000000000) . " GB, ext4): OK")
+$say ("Disk: " . $mp . " (" . [$gb $best] . " GB, ext4): OK")
 
 # ---- 5. Container download settings -----------------------------------------------------------------------------
 /container config set registry-url=https://registry-1.docker.io tmpdir=($mp . "/samm/tmp") layer-dir=($mp . "/samm/layers")
@@ -123,7 +155,7 @@ $say ("Disk: " . $mp . " (" . ($best / 1000000000) . " GB, ext4): OK")
 
 # ---- 6. The SAMM app --------------------------------------------------------------------------------------------
 :if ([:len [/app find where name="samm"]] = 0) do={
-    :local url "https://github.com/mhdhaidarah/samm-docker/releases/latest/download/docker-compose.yml"
+    :local url "https://raw.githubusercontent.com/mhdhaidarah/samm-docker/main/docker-compose.yml"
     :if ([:typeof $SAMMCOMPOSE] = "str" and [:len $SAMMCOMPOSE] > 0) do={ :set url $SAMMCOMPOSE }
     :local f ($mp . "/samm/compose.yml")
     $say "Downloading SAMM's compose file..."
