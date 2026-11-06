@@ -1,5 +1,5 @@
-# SAMM Docker Compose — v5.12.4
-# version: 5.12.4
+# SAMM Docker Compose — v6.0.0
+# version: 6.0.0
 #
 # PASTE-AND-GO: this file runs as-is — `docker compose up -d`, no .env needed.
 # To set your own database password, find & replace EVERY occurrence of
@@ -12,7 +12,7 @@
 # automatically — no separate file, no arch to choose.
 #
 # Customer install (recommended — generates a strong password for you):
-#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v5.12.4/install.sh | sudo bash
+#   curl -fsSL https://github.com/mhdhaidarah/samm-docker/releases/download/v6.0.0/install.sh | sudo bash
 #
 # On a MikroTik router: Container -> Apps -> New -> YAML, paste this, storage on
 # a formatted disk. (If the app hangs at "waiting for reverse proxy" on RouterOS
@@ -87,6 +87,8 @@ services:
       # only uses it when the WhatsApp provider is "qr").
       WA_BRIDGE_URL: http://wa-bridge:8787
       WA_BRIDGE_TOKEN: change-me-random-token
+      # SCOOP AI engine (SAMM 6.0): the samm-scoop container below, on this compose network only.
+      SAMM_SCOOP_URL: http://samm-scoop:4097
     depends_on:
       postgres:
         condition: service_healthy
@@ -114,6 +116,30 @@ services:
       - sammvar:/opt/samm/var
       - sammlogs:/var/log/samm
       - sammlocales:/opt/samm/app/locales
+
+  # SCOOP AI engine (SAMM 6.0): installs OpenCode from SecuryTik's mirror into its own volume, runs it on this network
+  # only (no port published; its only tool is SAMM's API) and updates it daily at 05:00 with rollback.
+  samm-scoop:
+    image: mhdhaidarah/samm:latest
+    restart: unless-stopped
+    command: ["scoop"]
+    environment:
+      SAMM_ROLE: scoop  # see samm-api notes — parser-agnostic role hint
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: samm
+      POSTGRES_USER: samm
+      POSTGRES_PASSWORD: change-me-strong-random-string
+      TZ: UTC
+      SAMM_API_URL: http://samm-api:8000
+    depends_on:
+      samm-api:
+        condition: service_healthy
+    volumes:
+      - etcsamm:/etc/samm
+      - sammvar:/opt/samm/var
+      - scoopengine:/opt/samm/runtime/scoop
+      - scoophome:/var/lib/samm-scoop
 
   samm-radius:
     image: mhdhaidarah/samm:latest
@@ -278,3 +304,5 @@ volumes:
   sammlogs: {}
   sammlocales: {}
   wabridge_auth: {}      # WhatsApp bridge multi-device session
+  scoopengine: {}        # SCOOP AI engine (OpenCode) and the previous one, for rollback
+  scoophome: {}          # SCOOP AI's saved AI logins and conversations
